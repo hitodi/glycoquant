@@ -40,10 +40,10 @@ def write(results, out_path, meta=None):
     # ---------- Glycans ----------
     ws = wb.active
     ws.title = "Glycans"
-    headers = ["No.", "Name (composition)", "HexNAc", "Hex", "dHex/Fuc",
+    headers = ["No.", "Oxford", "Name (composition)", "HexNAc", "Hex", "dHex/Fuc",
                "Neu5Ac", "Neu5Gc", "Type", "Sialylated", "Fucosylated",
                "Best ion m/z", "Adduct", "Charge", "RT (min)",
-               "MS2 #", "ppm", "Intensity (sum)", "Relative %"]
+               "MS2 #", "ppm", "Quant (sum)", "Relative %"]
     ws.append(["N-glycan analysis result"])
     ws["A1"].font = TITLE_FONT
     if meta:
@@ -54,12 +54,15 @@ def write(results, out_path, meta=None):
     _style_header(ws, hr, len(headers))
 
     first = hr + 1
-    inten_col = headers.index("Intensity (sum)") + 1   # 17 -> Q
-    inten_letter = get_column_letter(inten_col)
+    # 헤더명으로 열 위치를 동적 계산(헤더 변경에 견고)
+    col = lambda name: headers.index(name) + 1
+    let = lambda name: get_column_letter(col(name))
+    inten_col = col("Quant (sum)")
+    inten_letter = let("Quant (sum)")
     for i, r in enumerate(results):
         c = r["composition"]
         row = [
-            i + 1, r["name"], c["HexNAc"], c["Hex"], c["dHex"],
+            i + 1, r.get("oxford", ""), r["name"], c["HexNAc"], c["Hex"], c["dHex"],
             c["Neu5Ac"], c["Neu5Gc"], r["type"],
             "Y" if r["sialylated"] else "", "Y" if r["fucosylated"] else "",
             round(r["best_mz"], 4) if r["best_mz"] else None,
@@ -93,7 +96,7 @@ def write(results, out_path, meta=None):
             cell.border = BORDER
             if cc in (inten_col,):
                 cell.number_format = "#,##0"
-    _autofit(ws, [5, 30, 8, 7, 9, 8, 8, 13, 10, 11, 13, 10, 8, 9, 7, 7, 16, 11])
+    _autofit(ws, [5, 12, 28, 8, 7, 9, 8, 8, 13, 10, 11, 13, 10, 8, 9, 7, 7, 16, 11])
     ws.freeze_panes = ws.cell(first, 1)
 
     # ---------- Summary ----------
@@ -104,9 +107,9 @@ def write(results, out_path, meta=None):
     _style_header(ss, 2, 3)
     types = ["High-mannose", "Hybrid", "Complex"]
     gl = "Glycans"
-    # Type 열은 Glycans!H, Relative% 는 Glycans!R
-    type_range = f"'{gl}'!H{first}:H{last}"
-    pct_range = f"'{gl}'!R{first}:R{last}"
+    tl, pl = let("Type"), let("Relative %")          # 동적 열 문자
+    type_range = f"'{gl}'!{tl}{first}:{tl}{last}"
+    pct_range = f"'{gl}'!{pl}{first}:{pl}{last}"
     for t in types:
         ss.append([t, None, None])
         rr = ss.max_row
@@ -123,8 +126,9 @@ def write(results, out_path, meta=None):
     ss.append([])
     ss.append(["Modification", "Count", "Relative % (sum)"])
     _style_header(ss, ss.max_row, 3)
-    sia_range = f"'{gl}'!I{first}:I{last}"
-    fuc_range = f"'{gl}'!J{first}:J{last}"
+    sl, fl = let("Sialylated"), let("Fucosylated")
+    sia_range = f"'{gl}'!{sl}{first}:{sl}{last}"
+    fuc_range = f"'{gl}'!{fl}{first}:{fl}{last}"
     for label, rng in (("Sialylated", sia_range), ("Fucosylated", fuc_range)):
         ss.append([label, None, None])
         rr = ss.max_row

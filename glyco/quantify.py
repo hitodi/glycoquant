@@ -1,23 +1,20 @@
 """
-정량 (XIC 기반)
----------------
-타깃 m/z 목록에 대해 MS1 전체를 훑어 각 타깃의 XIC 피크 높이(apex)와
-그 RT를 구한다. (정량 방식은 기존 시트와 동일: adduct별 강도를 합산)
-
-성능: MS1 스펙트럼마다 벡터화된 searchsorted로 모든 피크를 한 번에 매칭하므로
-      수만 스캔도 수 초~수십 초에 처리된다.
+정량 (XIC)
+----------
+타깃 m/z 집합에 대해 MS1 전체를 훑어 XIC(추출 이온 크로마토그램)를 만들고,
+- apex : 최대 피크 높이
+- area : apex RT 주변 구간의 면적(사다리꼴 적분)  <- 논문 §2.5 권장 방식
+둘 다 제공한다. 면적적분은 (동정 후) 선택된 소수 타깃에만 적용한다.
 """
 
 import numpy as np
 
+# numpy 2.0 에서 trapz -> trapezoid 로 개명됨(양쪽 지원)
+_trapz = getattr(np, "trapezoid", None) or np.trapz
+
 
 def build_targets(candidates, adduct_ions, ion_mz_fn):
-    """
-    candidates: compositions.generate() 결과 리스트
-    adduct_ions: [(adduct_tuple, z), ...]
-    ion_mz_fn: (neutral, adduct, z) -> m/z
-    반환: (mz_sorted ndarray, meta list) — meta[i] = dict(cand_idx, adduct, z, mz)
-    """
+    """candidates × adducts -> (정렬된 mz ndarray, meta list)."""
     rows = []
     for ci, cand in enumerate(candidates):
         for adduct, z in adduct_ions:
@@ -29,38 +26,72 @@ def build_targets(candidates, adduct_ions, ion_mz_fn):
     return mz_sorted, meta
 
 
-def xic_apex(msdata, mz_targets, ppm_tol=10.0, log=print):
+def extract_xic(msdata, mz_targets, ppm_tol=10.0, log=print):
     """
-    각 타깃 m/z의 XIC 최대강도(apex height)와 그 RT, 그리고 apex 시점에
-    실제로 매칭된 MS1 피크의 m/z(정밀질량)를 구한다.
-    반환: (apex_intensity, apex_rt, apex_mz) — 모두 mz_targets 와 같은 길이
+    선택된 타깃들의 XIC 강도행렬을 만든다.
+    반환 dict:
+      rt    : (n_scan,)          MS1 RT 축
+      inten : (n_target, n_scan) 각 타깃의 스캔별 강도(매칭 없으면 0)
+      mz    : (n_target, n_scan) 매칭된 실제 m/z (없으면 nan)
     """
+    n_scan = len(msdata.ms1)
     nt = len(mz_targets)
-    best_int = np.zeros(nt, dtype=np.float64)
-    best_rt = np.full(nt, np.nan, dtype=np.float64)
-    best_mz = np.full(nt, np.nan, dtype=np.float64)
-    tol = mz_targets * ppm_tol * 1e-6   # 타깃별 절대 허용오차
+    rt = np.array([s[0] for s in msdata.ms1], dtype=np.float64)
+    inten = np.zeros((nt, n_scan), dtype=np.float64)
+    mzmat = np.full((nt, n_scan), np.nan, dtype=np.float64)
+    tol = mz_targets * ppm_tol * 1e-6
 
-    for k, (rt, mz, inten) in enumerate(msdata.ms1):
+    for k, (_, mz, it) in enumerate(msdata.ms1):
         if mz.size == 0:
             continue
-        # 각 타깃에 대해 스펙트럼에서 가장 가까운 피크를 찾는다
-        idx = np.searchsorted(mz, mz_targets)
-        idx = np.clip(idx, 1, mz.size - 1)
+        idx = np.clip(np.searchsorted(mz, mz_targets), 1, mz.size - 1)
         left = idx - 1
-        # 왼/오 후보 중 더 가까운 쪽 선택
         dl = np.abs(mz[left] - mz_targets)
         dr = np.abs(mz[idx] - mz_targets)
         use_left = dl <= dr
         nearest = np.where(use_left, left, idx)
         ndist = np.where(use_left, dl, dr)
-        peak_int = inten[nearest]
-        hit = (ndist <= tol)
-        # apex 갱신
-        upd = hit & (peak_int > best_int)
-        best_int[upd] = peak_int[upd]
-        best_rt[upd] = rt
-        best_mz[upd] = mz[nearest][upd]
+        hit = ndist <= tol
+        inten[hit, k] = it[nearest][hit]
+        mzmat[hit, k] = mz[nearest][hit]
         if log and k % 500 == 0 and k:
-            log(f"[정량] MS1 {k}/{len(msdata.ms1)} 스캔...")
-    return best_int, best_rt, best_mz
+            log(f"[정량] MS1 {k}/{n_scan} 스캔...")
+    return {"rt": rt, "inten": inten, "mz": mzmat}
+
+
+def apex(xic):
+    """타깃별 apex 강도/ RT / 정밀 m/z."""
+    inten, rt, mzmat = xic["inten"], xic["rt"], xic["mz"]
+    ai = np.argmax(inten, axis=1)
+    rows = np.arange(inten.shape[0])
+    return inten[rows, ai], rt[ai], mzmat[rows, ai]
+
+
+def area(xic, rt_window=0.5):
+    """
+    타깃별 면적: apex RT ± rt_window 구간을 사다리꼴 적분.
+    apex 정밀 m/z 도 함께 반환(MS1 게이트용).
+    """
+    inten, rt, mzmat = xic["inten"], xic["rt"], xic["mz"]
+    nt = inten.shape[0]
+    ai = np.argmax(inten, axis=1)
+    rows = np.arange(nt)
+    apex_rt = rt[ai]
+    apex_mz = mzmat[rows, ai]
+    areas = np.zeros(nt, dtype=np.float64)
+    for i in range(nt):
+        if inten[i, ai[i]] <= 0:
+            continue
+        lo, hi = apex_rt[i] - rt_window, apex_rt[i] + rt_window
+        sel = (rt >= lo) & (rt <= hi)
+        if sel.sum() >= 2:
+            areas[i] = _trapz(inten[i, sel], rt[sel])
+        else:
+            areas[i] = inten[i, ai[i]]   # 점 하나뿐이면 높이로 대체
+    return areas, apex_rt, apex_mz
+
+
+# --- 하위호환: 단일 함수형 apex 추출 ---
+def xic_apex(msdata, mz_targets, ppm_tol=10.0, log=print):
+    xic = extract_xic(msdata, mz_targets, ppm_tol=ppm_tol, log=log)
+    return apex(xic)

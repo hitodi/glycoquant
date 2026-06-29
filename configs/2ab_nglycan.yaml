@@ -1,0 +1,54 @@
+# ===========================================================================
+# 예시 설정: 2AB(2-aminobenzamide) 표지 N-글리칸
+# ProA 대신 다른 라벨로 바꾸는 '템플릿' 예시. (실측 검증 전 질량 확인 권장)
+# 라벨만 교체하면 중성질량·환원말단 진단이온이 자동으로 달라진다.
+# ===========================================================================
+
+name: 2AB N-glycan (example)
+
+label:
+  name: 2AB
+  formula: {C: 7, H: 8, N: 2, O: 1}   # 2-aminobenzamide
+  attach_loss: {O: 1}                  # 환원아민화 -O
+  count: 1
+
+monosaccharides:
+  HexNAc: {C: 8,  H: 15, N: 1, O: 6}
+  Hex:    {C: 6,  H: 12, O: 6}
+  dHex:   {C: 6,  H: 12, O: 5}
+  Neu5Ac: {C: 11, H: 19, N: 1, O: 9}
+  Neu5Gc: {C: 11, H: 19, N: 1, O: 10}
+
+adducts:
+  cations: [H, Na, K]
+  max_charge: 3
+
+search_ranges:
+  HexNAc: [2, 8]
+  Hex:    [3, 12]
+  dHex:   [0, 4]
+  Neu5Ac: [0, 4]
+  Neu5Gc: [0, 4]
+
+plausibility:
+  min_hexnac: 2
+  min_hex: 3
+  sialic_le_antennae: true
+  fucose_le_antennae_plus1: true
+  highmannose_no_sia_fuc: true
+
+tolerances:
+  precursor_ppm: 10
+  ms1_ppm: 5
+  ms2_ppm: 20
+
+quantify:
+  method: area
+  rt_window_min: 0.5
+  require_ms2: true
+
+diagnostic_ions:
+  - {name: HexNAc,       kind: oxonium,  monos: {HexNAc: 1}}
+  - {name: HexNAc+Hex,   kind: oxonium,  monos: {HexNAc: 1, Hex: 1}}
+  - {name: 2AB-HexNAc,   kind: reducing, monos: {HexNAc: 1}}
+require_diagnostic: [HexNAc]

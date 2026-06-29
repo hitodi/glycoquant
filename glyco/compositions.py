@@ -1,77 +1,87 @@
 """
-조성 생성기 + adduct 이온 목록
-------------------------------
-새 .raw 파일에는 기존 45개와 다른 글리칸이 들어있을 수 있으므로,
-N-글리칸으로 말이 되는 범위에서 조성을 '조합으로 생성'한다.
-(45개 하드코딩 금지 — advisor 지침)
+조성 생성기 + adduct 이온 목록 (설정 구동)
+------------------------------------------
+새 .raw 에는 기존과 다른 글리칸이 있을 수 있으므로, 설정의 탐색범위에서
+조성을 '조합으로 생성'한다(하드코딩 금지). 단당 종류·범위·타당성 규칙은 Config 에서 온다.
 """
 
-from itertools import combinations_with_replacement
+from itertools import combinations_with_replacement, product
 from dataclasses import dataclass, field
 
 from . import masses
+from .nomenclature import oxford
 
 
+# --- 하위호환용 기본 범위(설정 없이 호출 시) ---
 @dataclass
 class SearchRanges:
-    """조성 탐색 범위 (CLI/설정으로 조절 가능)."""
-    HexNAc: range = field(default_factory=lambda: range(2, 9))   # 코어 2 ~ 8
-    Hex: range = field(default_factory=lambda: range(3, 13))     # 코어 3 ~ high-mannose
-    dHex: range = field(default_factory=lambda: range(0, 5))     # Fuc 0 ~ 4
+    HexNAc: range = field(default_factory=lambda: range(2, 9))
+    Hex: range = field(default_factory=lambda: range(3, 13))
+    dHex: range = field(default_factory=lambda: range(0, 5))
     Neu5Ac: range = field(default_factory=lambda: range(0, 5))
     Neu5Gc: range = field(default_factory=lambda: range(0, 5))
-    Xyl: range = field(default_factory=lambda: range(0, 1))      # 기본 끔
+    Xyl: range = field(default_factory=lambda: range(0, 1))
     ProA: int = 1
 
+    def as_dict(self):
+        return {k: getattr(self, k) for k in
+                ("HexNAc", "Hex", "dHex", "Neu5Ac", "Neu5Gc", "Xyl")}
 
-def _is_plausible_nglycan(c: dict) -> bool:
-    """N-글리칸 조성 타당성 휴리스틱 (GlycoMod 류)."""
-    hexnac, hexn = c["HexNAc"], c["Hex"]
-    sia = c["Neu5Ac"] + c["Neu5Gc"]
-    fuc = c["dHex"]
-    # 최소 trimannosyl 코어: HexNAc>=2, Hex>=3 (또는 paucimannose 허용 시 완화)
-    if hexnac < 2 or hexn < 3:
+
+def _plausible(c: dict, rules: dict) -> bool:
+    """N-글리칸 타당성 휴리스틱 (설정 토글)."""
+    hexnac = c.get("HexNAc", 0)
+    hexn = c.get("Hex", 0)
+    sia = c.get("Neu5Ac", 0) + c.get("Neu5Gc", 0)
+    fuc = c.get("dHex", 0)
+    if hexnac < rules.get("min_hexnac", 2):
         return False
-    # 안테나(비코어 HexNAc) 수
-    antennae = hexnac - 2
-    # 시알산은 안테나 수를 넘을 수 없음
-    if sia > max(antennae, 0):
+    if hexn < rules.get("min_hex", 3):
         return False
-    # 푸코스는 (코어1 + 안테나당 1) 정도로 제한
-    if fuc > antennae + 1:
+    antennae = max(hexnac - 2, 0)
+    if rules.get("sialic_le_antennae", True) and sia > antennae:
         return False
-    # high-mannose(HexNAc==2)는 시알/푸코 없음
-    if hexnac == 2 and (sia > 0 or fuc > 0):
+    if rules.get("fucose_le_antennae_plus1", True) and fuc > antennae + 1:
+        return False
+    if rules.get("highmannose_no_sia_fuc", True) and hexnac == 2 and (sia or fuc):
         return False
     return True
 
 
-def generate(ranges: SearchRanges = None, plausible_only: bool = True):
-    """타당한 글리칸 조성들을 생성 (각 조성에 neutral mass 포함)."""
-    r = ranges or SearchRanges()
+def generate(ranges=None, plausible_only=True, rules=None, label_count=1):
+    """
+    조성 생성. ranges 는 {name: range} dict 또는 SearchRanges.
+    각 결과: {composition, neutral, formula, name, oxford}
+    """
+    if ranges is None:
+        ranges = SearchRanges()
+    rdict = ranges.as_dict() if isinstance(ranges, SearchRanges) else dict(ranges)
+    rules = rules or {}
+    names = list(rdict.keys())
     out = []
-    for hexnac in r.HexNAc:
-        for hexn in r.Hex:
-            for dhex in r.dHex:
-                for ac in r.Neu5Ac:
-                    for gc in r.Neu5Gc:
-                        for xyl in r.Xyl:
-                            c = {"HexNAc": hexnac, "Hex": hexn, "dHex": dhex,
-                                 "Neu5Ac": ac, "Neu5Gc": gc, "Xyl": xyl,
-                                 "ProA": r.ProA}
-                            if plausible_only and not _is_plausible_nglycan(c):
-                                continue
-                            out.append({
-                                "composition": c,
-                                "neutral": masses.neutral_mass(c),
-                                "formula": masses.formula_str(c),
-                                "name": composition_name(c),
-                            })
+    for combo in product(*[list(rdict[n]) for n in names]):
+        c = dict(zip(names, combo))
+        c["ProA"] = label_count
+        if plausible_only and not _plausible(c, rules):
+            continue
+        out.append({
+            "composition": c,
+            "neutral": masses.neutral_mass(c),
+            "formula": masses.formula_str(c),
+            "name": composition_name(c),
+            "oxford": oxford(c),
+        })
     return out
 
 
+def from_config(cfg, plausible_only=True):
+    """Config 의 search_ranges/plausibility 로 조성 생성."""
+    ranges = {n: range(lo, hi + 1) for n, (lo, hi) in cfg.search_ranges.items()}
+    return generate(ranges=ranges, plausible_only=plausible_only,
+                    rules=cfg.plausibility, label_count=cfg.label.count)
+
+
 def composition_name(c: dict) -> str:
-    """카운트로부터 이름 재생성 (엑셀 E열 이름은 틀렸으므로 신뢰 금지)."""
     parts = []
     for key, label in (("HexNAc", "HexNAc"), ("Hex", "Hex"), ("dHex", "Fuc"),
                        ("Neu5Ac", "Neu5Ac"), ("Neu5Gc", "Neu5Gc"), ("Xyl", "Xyl")):
@@ -80,12 +90,8 @@ def composition_name(c: dict) -> str:
     return " ".join(parts) if parts else "(empty)"
 
 
-def adduct_ions(max_charge: int = 3, cations=("H", "Na", "K")):
-    """
-    전하 1..max_charge 에 대한 모든 adduct 다중집합을 생성.
-    반환: [(adduct_tuple, z), ...]
-    예: ("H",),1 / ("H","Na"),2 / ("H","H","K"),3 ...
-    """
+def adduct_ions(max_charge=3, cations=("H", "Na", "K")):
+    """전하 1..max_charge 의 모든 adduct 다중집합. [(adduct_tuple, z), ...]"""
     out = []
     for z in range(1, max_charge + 1):
         for combo in combinations_with_replacement(cations, z):
@@ -94,12 +100,10 @@ def adduct_ions(max_charge: int = 3, cations=("H", "Na", "K")):
 
 
 def adduct_label(adduct) -> str:
-    """('H','H','Na') -> '2H+Na' 식 라벨."""
     from collections import Counter
     cnt = Counter(adduct)
-    order = ["H", "Na", "K"]
     parts = []
-    for cat in order:
+    for cat in ("H", "Na", "K"):
         if cnt[cat]:
             parts.append(f"{cnt[cat] if cnt[cat] > 1 else ''}{cat}")
     return "+".join(parts)

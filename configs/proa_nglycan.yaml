@@ -1,0 +1,71 @@
+# ===========================================================================
+# ProA 표지 N-글리칸 분석 설정 (기본값)
+# 출처: Moon et al., Enzyme and Microbial Technology 196 (2026) 110830
+#        "Structural, quantitative... N-glycans ... LC-ESI-HCD-MS/MS"
+# 다른 라벨/단당/실험으로 바꾸려면 이 파일만 복사·수정하면 됩니다.
+# ===========================================================================
+
+name: ProA N-glycan (HILIC, positive)
+
+# --- 환원말단 표지 (reductive amination) ---
+# formula: 자유 표지의 원소조성.  attach_loss: 부착 시 빠지는 원자(환원아민화 = -O)
+label:
+  name: ProA            # procainamide
+  formula: {C: 13, H: 21, N: 3, O: 1}
+  attach_loss: {O: 1}
+  count: 1
+
+# --- 단당 (자유 단당의 원소조성) ---
+monosaccharides:
+  HexNAc: {C: 8,  H: 15, N: 1, O: 6}
+  Hex:    {C: 6,  H: 12, O: 6}
+  dHex:   {C: 6,  H: 12, O: 5}     # = Fuc
+  Neu5Ac: {C: 11, H: 19, N: 1, O: 9}
+  Neu5Gc: {C: 11, H: 19, N: 1, O: 10}
+  Xyl:    {C: 5,  H: 10, O: 5}
+
+# --- adduct 양이온 (질량은 표준원소 - 전자로 자동계산) ---
+adducts:
+  cations: [H, Na, K]
+  max_charge: 3
+
+# --- 조성 탐색 범위 (min, max 포함) ---
+search_ranges:
+  HexNAc: [2, 8]
+  Hex:    [3, 12]
+  dHex:   [0, 4]
+  Neu5Ac: [0, 4]
+  Neu5Gc: [0, 4]
+  Xyl:    [0, 0]
+
+# --- N-글리칸 타당성 규칙 (휴리스틱) ---
+plausibility:
+  min_hexnac: 2
+  min_hex: 3
+  sialic_le_antennae: true      # 시알산 <= (HexNAc-2)
+  fucose_le_antennae_plus1: true
+  highmannose_no_sia_fuc: true  # HexNAc==2 면 시알/푸코 없음
+
+# --- 허용오차 (ppm) ---
+tolerances:
+  precursor_ppm: 10    # MS2 isolation m/z 매칭(느슨)
+  ms1_ppm: 5           # MS1 정밀질량 게이트(논문 기준 <5ppm)
+  ms2_ppm: 20          # 진단이온 매칭
+
+# --- 정량 ---
+quantify:
+  method: area         # area | apex   (논문 §2.5 = EIC 면적)
+  rt_window_min: 0.5   # apex 기준 ±분, 면적 적분 구간
+  require_ms2: true    # MS2 근거 있는 글리칸만 정량
+
+# --- 진단(oxonium/단편) 이온: MS2 확인용 ---
+# kind: oxonium = 잔기합+proton(B형) / reducing = 라벨포함 환원말단단편+proton(Y형)
+diagnostic_ions:
+  - {name: HexNAc,          kind: oxonium,  monos: {HexNAc: 1}}
+  - {name: HexNAc+Hex,      kind: oxonium,  monos: {HexNAc: 1, Hex: 1}}
+  - {name: Neu5Ac,          kind: oxonium,  monos: {Neu5Ac: 1}}
+  - {name: Neu5Gc,          kind: oxonium,  monos: {Neu5Gc: 1}}
+  - {name: ProA-HexNAc,     kind: reducing, monos: {HexNAc: 1}}
+  - {name: ProA-Fuc-HexNAc, kind: reducing, monos: {HexNAc: 1, dHex: 1}}
+# 확인에 반드시 필요한 공통 이온(이게 MS2에 있어야 글리칸으로 인정)
+require_diagnostic: [HexNAc, ProA-HexNAc]

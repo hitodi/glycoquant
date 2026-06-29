@@ -6,7 +6,7 @@ PY=python3
 command -v "$PY" >/dev/null 2>&1 || PY=python
 
 # 최초 1회 의존성 설치 확인
-"$PY" -c "import pyteomics, psims, numpy, openpyxl, lxml" 2>/dev/null || {
+"$PY" -c "import pyteomics, psims, numpy, openpyxl, lxml, yaml" 2>/dev/null || {
   echo "[설치] 필요한 패키지를 설치합니다..."
   "$PY" -m pip install -r requirements.txt
 }

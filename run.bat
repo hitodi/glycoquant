@@ -4,7 +4,7 @@ cd /d "%~dp0"
 
 where py >nul 2>nul && (set PY=py) || (set PY=python)
 
-%PY% -c "import pyteomics, psims, numpy, openpyxl, lxml" 2>nul
+%PY% -c "import pyteomics, psims, numpy, openpyxl, lxml, yaml" 2>nul
 if errorlevel 1 (
   echo [설치] 필요한 패키지를 설치합니다...
   %PY% -m pip install -r requirements.txt

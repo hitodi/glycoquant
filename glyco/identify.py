@@ -15,7 +15,7 @@
 
 import numpy as np
 
-from . import masses, compositions, quantify, classify
+from . import masses, compositions, quantify, classify, diagnostic
 
 
 def _ppm(obs, theo):
@@ -58,8 +58,14 @@ def match_ms2(msdata, mz_targets, meta, ppm_tol=10.0):
 
 
 def run(candidates, *, msdata, max_charge=3, ppm_tol=10.0,
-        ms1_ppm=5.0, require_ms2=True, min_intensity=0.0, log=print):
-    """전체 동정+정량 파이프라인. 반환: 결과 dict 리스트(상대량 내림차순)."""
+        ms1_ppm=5.0, require_ms2=True, min_intensity=0.0,
+        quant_method="area", rt_window=0.5,
+        chem=None, require_diagnostic=None, ms2_ppm=20.0, log=print):
+    """전체 동정+정량 파이프라인. 반환: 결과 dict 리스트(상대량 내림차순).
+
+    quant_method: 'area'(EIC 면적, 논문방식) | 'apex'(피크높이)
+    chem + require_diagnostic: 진단 oxonium 확인 활성화(MS2 피크 보관 필요).
+    """
     adducts = compositions.adduct_ions(max_charge=max_charge)
     mz_targets, meta = quantify.build_targets(candidates, adducts, masses.ion_mz)
     log(f"[동정] 후보 {len(candidates)}개 × adduct -> 타깃 {len(mz_targets)}개")
@@ -72,21 +78,41 @@ def run(candidates, *, msdata, max_charge=3, ppm_tol=10.0,
         keep = set(ms2_hits.keys())
     else:
         keep = set(range(len(candidates)))
+
+    # 진단 oxonium 확인(선택): required 이온을 가진 MS2 스캔이 하나라도 있어야 인정
+    if require_diagnostic and chem is not None and msdata.ms2_peaks:
+        diag_table = chem.diagnostic_table()
+        before = len(keep)
+        confirmed = set()
+        for ci in list(keep):
+            for h in ms2_hits.get(ci, []):
+                ok = diagnostic.confirm_scan(msdata, h["scan"], diag_table,
+                                             require_diagnostic, ppm_tol=ms2_ppm)
+                if ok:
+                    confirmed.add(ci)
+                    break
+        keep = confirmed
+        log(f"[동정] 진단이온 확인 통과 {len(keep)}/{before}개")
+
     if not keep:
         log("[경고] 동정된 글리칸이 없습니다 (ppm 허용오차/범위를 확인하세요).")
         return []
 
-    # 타깃 중 keep 에 속한 것만 골라 XIC
+    # 타깃 중 keep 에 속한 것만 골라 XIC (동정 후 소수 타깃만 면적적분)
     sel = [i for i, m in enumerate(meta) if m["cand_idx"] in keep]
     sel_mz = mz_targets[sel]
-    apex_int, apex_rt, apex_mz = quantify.xic_apex(msdata, sel_mz, ppm_tol=ppm_tol, log=log)
+    xic = quantify.extract_xic(msdata, sel_mz, ppm_tol=ppm_tol, log=log)
+    if quant_method == "apex":
+        signal, apex_rt, apex_mz = quantify.apex(xic)
+    else:
+        signal, apex_rt, apex_mz = quantify.area(xic, rt_window=rt_window)
 
     # cand_idx -> adduct별 강도 집계
     from collections import defaultdict
     per = defaultdict(lambda: {"sum": 0.0, "adducts": [], "rt": None, "best": 0.0})
     for local_i, target_i in enumerate(sel):
         m = meta[target_i]
-        inten = float(apex_int[local_i])
+        inten = float(signal[local_i])
         if inten <= min_intensity:
             continue
         # MS1 정밀질량 게이트: apex 피크가 이론 m/z 와 ms1_ppm 이내여야 인정
@@ -115,6 +141,7 @@ def run(candidates, *, msdata, max_charge=3, ppm_tol=10.0,
         best_adduct = max(v["adducts"], key=lambda a: a["intensity"]) if v["adducts"] else None
         results.append({
             "name": cand["name"],
+            "oxford": cand.get("oxford", ""),
             "composition": c,
             "formula": cand["formula"],
             "neutral": cand["neutral"],

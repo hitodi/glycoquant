@@ -1,102 +1,130 @@
-# glycan_tool — ProA 표지 N-글리칸 분석기
+# glycan_tool — 라벨 글리칸 자동 분석기 (v0.2)
 
-Thermo `.raw`(또는 `.mzML`) 파일에서 ProA로 표지한 N-글리칸을
-**자동으로 동정(identification)하고 정량(quantification)** 해서 엑셀로 내보냅니다.
-Xcalibur(윈도우 전용) 없이 macOS/Windows에서 바로 돌아갑니다.
+Thermo `.raw`(또는 `.mzML`)에서 **환원말단 표지(ProA 등) 글리칸을 자동으로
+동정·정량**해 엑셀로 내보낸다. Xcalibur(윈도우 전용) 없이 macOS/Windows에서 동작.
 
-기존 `Alzhemer of brain.xlsx`에서 손으로 하던
-"스크리닝 → 계산기 대조 → 상대량 집계" 과정을 대체합니다.
+방법론은 같은 그룹의 논문
+*Moon et al., Enzyme and Microbial Technology 196 (2026) 110830*
+("Structural, quantitative... N-glycans ... LC-ESI-HCD-MS/MS")을 따른다.
+
+기본 설정은 **ProA N-글리칸**이지만, **`configs/*.yaml` 한 파일만 바꾸면**
+다른 라벨(2AB·2AA·free)·단당·adduct·탐색범위로 재사용할 수 있다.
 
 ---
 
-## 무엇을 하나
+## 파이프라인
 
 ```
-.raw  ─(ThermoRawFileParser)→  mzML  ─(파싱)→  MS1 / MS2 precursor
-     → 조성 조합 생성 + 이론 m/z(H/Na/K, 1~3가) 계산
-     → MS2 precursor 를 ppm 매칭해 글리칸 동정
-     → 각 adduct XIC 피크높이 합산 → 상대량(%)
-     → High-mannose / Hybrid / Complex 분류
-     → 결과 엑셀(Glycans / Summary / Adducts 3시트)
+.raw ─(ThermoRawFileParser)→ mzML ─(파싱: MS1 + MS2 단편)→
+  설정의 단당·라벨로 조성 조합 생성 + 이론 m/z(H/Na/K, 1~3가)
+  → MS2 precursor ppm 매칭으로 동정
+  → 진단 oxonium 이온(204.09 HexNAc, 441.27 ProA-HexNAc…)으로 확인
+  → MS1 정밀질량 게이트(<5 ppm)
+  → 각 adduct XIC '면적' 합산 → 상대량(%)          (논문 §2.5)
+  → High-mannose/Hybrid/Complex 분류 + Oxford 명명(FA2, M5…)
+  → 엑셀(Glycans / Summary / Adducts)
 ```
 
-질량 모델은 기존 `계산기` 시트와 동일하게 검증됨(44개 [M+H]+ 재현 오차 < 0.001 ppm).
+### 검증 (tests/)
+| 항목 | 기준 | 현재 |
+|---|---|---|
+| 질량엔진 (계산기 44개 [M+H]+) | < 0.001 ppm | 0.0007 ppm ✅ |
+| 논문 진단이온 6종 | < 2 ppm | < 1 ppm ✅ |
+| Oxford 명명 (논문 Table 1) | 일치 | 8/8 ✅ |
+| 정량 순위 상관 (시트 56조성) | Spearman ≥ 0.57 | +0.60 (area) ✅ |
+
+`pytest` 로 전부 재현 가능(대용량 mzML은 있을 때만 정량 테스트 실행).
 
 ---
 
 ## 빠른 시작
 
 ### 비개발자 (더블클릭)
-- **macOS**: `run.command` 더블클릭 → `.raw` 경로 입력(드래그도 됨)
-- **Windows**: `run.bat` 더블클릭 → `.raw` 경로 입력(드래그도 됨)
+- **macOS**: `run.command` 더블클릭 → `.raw` 경로 입력(드래그 가능)
+- **Windows**: `run.bat` 더블클릭 → `.raw` 경로 입력(드래그 가능)
 
-최초 1회 자동으로 필요한 패키지와 변환기를 설치합니다.
+최초 1회 필요한 패키지·변환기를 자동 설치한다.
 
 ### 명령줄
 ```bash
-# 의존성(최초 1회)
-python -m pip install -r requirements.txt
-# (윈도우만) 변환기 받기:  python setup_thermo.py
+python -m pip install -r requirements.txt        # 최초 1회
+# (윈도우) 변환기:  python setup_thermo.py
 
-# 기본 실행 — 입력옆에 같은이름_glycans.xlsx 생성
-python glycan_analyze.py 시료.raw
-
-# 옵션 예시
-python glycan_analyze.py 시료.raw -o 결과.xlsx --ppm 8 --max-charge 3
+python glycan_analyze.py 시료.raw                 # 기본(ProA) 분석
+python glycan_analyze.py 시료.raw --ms1-ppm 3     # 더 엄격하게
+python glycan_analyze.py 시료.raw -c configs/2ab_nglycan.yaml   # 다른 라벨
 ```
 
-주요 옵션:
+주요 옵션: `-c/--config`, `--precursor-ppm`, `--ms1-ppm`, `--max-charge`,
+`--quant {area,apex}`, `--rt-window`, `--no-ms2`, `--no-diagnostic`,
+`--min-intensity`, `--keep-mzml`.
 
-| 옵션 | 뜻 | 기본 |
-|---|---|---|
-| `-o, --output` | 출력 엑셀 경로 | `입력명_glycans.xlsx` |
-| `--ppm` | 질량 허용오차(ppm) | 10 |
-| `--max-charge` | 최대 전하수 | 3 |
-| `--no-ms2` | MS2 근거 없이도 정량 | 꺼짐(=MS2 확인된 것만) |
-| `--min-intensity` | 이 강도 미만 adduct 무시 | 0 |
-| `--hexnac/--hex/--fuc/--neu5ac/--neu5gc` | 조성 탐색 범위 `MIN MAX` | 내장 기본값 |
-| `--xyl` | Xyl 포함 탐색 | 꺼짐 |
-| `--keep-mzml` | 변환 mzML 보존 | 꺼짐 |
+### 파이썬에서 직접
+```python
+from glyco import pipeline
+results, out_path, cfg = pipeline.analyze("시료.raw", config_path=None)
+```
 
 ---
 
-## 폴더 구조
+## 설정으로 일반화 (`configs/*.yaml`)
+
+라벨·단당·adduct·탐색범위·허용오차·정량방식·진단이온을 전부 YAML로 정의한다.
+새 실험은 `proa_nglycan.yaml`을 복사해 수정하면 끝.
+
+```yaml
+label:                       # 환원말단 표지
+  name: ProA
+  formula: {C: 13, H: 21, N: 3, O: 1}
+  attach_loss: {O: 1}        # 환원아민화 = -O
+monosaccharides:             # 자유 단당 원소조성
+  HexNAc: {C: 8, H: 15, N: 1, O: 6}
+  Hex:    {C: 6, H: 12, O: 6}
+  ...
+adducts: {cations: [H, Na, K], max_charge: 3}
+search_ranges: {HexNAc: [2,8], Hex: [3,12], ...}
+tolerances: {precursor_ppm: 10, ms1_ppm: 5, ms2_ppm: 20}
+quantify: {method: area, rt_window_min: 0.5, require_ms2: true}
+diagnostic_ions: [...]       # oxonium / reducing 단편
+```
+
+`configs/2ab_nglycan.yaml` = 라벨만 2AB로 바꾼 템플릿 예시.
+
+---
+
+## 구조
 ```
 glycan_tool/
-  glycan_analyze.py      # CLI 진입점
+  glycan_analyze.py      # CLI (얇은 진입점; 더블클릭 래퍼가 호출)
   setup_thermo.py        # OS별 변환기 자동 설치
-  run.command / run.bat  # 더블클릭 실행 래퍼
-  requirements.txt
-  glyco/
-    masses.py            # 질량 엔진(검증됨)
-    compositions.py      # 조성 조합 생성 + adduct
-    raw.py               # .raw -> mzML
-    mzml_parse.py        # mzML 파싱
-    quantify.py          # XIC 정량(벡터화)
-    identify.py          # MS2 매칭 + 결과 조립
-    classify.py          # 구조 유형 분류
-    report.py            # 엑셀 출력
-    vendor/              # ThermoRawFileParser 번들(.gitignore)
+  run.command / run.bat  # 비개발자용 더블클릭 래퍼
+  pyproject.toml         # 패키징/테스트 설정
+  configs/               # *.yaml 설정 (라벨·단당·범위…)
+  glyco/                 # 라이브러리
+    config.py            #   YAML -> 설정객체
+    chem.py              #   질량/이온/진단이온 계산 (설정 구동)
+    masses.py            #   chem 의 기본(ProA) shim (하위호환)
+    compositions.py      #   조성 조합 생성 + adduct
+    nomenclature.py      #   Oxford 명명(FA2, M5…)
+    classify.py          #   High-mannose/Hybrid/Complex
+    raw.py               #   .raw -> mzML
+    mzml_parse.py        #   mzML 파싱 (MS1 + MS2 단편)
+    quantify.py          #   XIC apex/area
+    diagnostic.py        #   oxonium 확인
+    identify.py          #   precursor 매칭 + 확인 + 집계
+    pipeline.py          #   오케스트레이션 (analyze())
+    report.py            #   엑셀 출력
+  tests/                 # 회귀 가드레일(질량/정량/명명/설정)
 ```
 
 ---
 
-## 알아둘 점 / 한계 (v0.1)
-
-- **동정**은 결정론적 m/z 매칭이라 신뢰 가능. **정량(%)**은 자동 XIC 값이라
-  사람이 Xcalibur에서 읽은 NL 값과 **절대값이 다를 수 있음** → 순위·패턴으로 해석할 것.
-- MS2 precursor m/z는 **isolation 타깃값**이라 MS1 정밀질량보다 오차가 큼.
-  `--ppm 3`처럼 너무 좁히면 진짜 글리칸을 놓침(기본 10 권장).
-- 조성을 조합으로 생성하므로, 넓은 범위 + 느슨한 ppm에서는 **오탐(특히 Complex)** 이
-  늘 수 있음. `--ppm` 을 줄이거나 `--min-intensity` 로 약한 신호를 거르면 개선됨.
-- 구조 분류는 조성 기반 **휴리스틱**(이성질체 구분 불가).
-- 윈도우 배포 시 `setup_thermo.py`가 win 변환기를 받습니다(.NET 포함 self-contained).
-
-### 비개발자에게 단일 실행파일로 배포 (선택)
-파이썬조차 없는 PC용으로는 각 OS에서 PyInstaller로 빌드:
-```bash
-python -m pip install pyinstaller
-pyinstaller --onefile --add-data "glyco/vendor:glyco/vendor" glycan_analyze.py
-# 윈도우는 구분자 ; :  --add-data "glyco/vendor;glyco/vendor"
-```
-(PyInstaller는 크로스 컴파일이 안 되므로 윈도우 exe는 윈도우에서 빌드해야 함)
+## 알아둘 점 / 한계 (v0.2)
+- **동정**은 결정론적 m/z + 진단이온 확인이라 신뢰 가능.
+- **정량(%)**은 자동 EIC 면적이라 사람이 읽은 값과 절대값은 다를 수 있음
+  → 순위·패턴으로 해석(시트와 Spearman ≈ 0.6).
+- 진단 oxonium 은 '글리칸 vs 비글리칸'을 거르는 것(노이즈 제거). '조성 vs 조성'
+  구분은 못 하므로 동질량 오탐은 `--ms1-ppm` 강화로 줄인다.
+- 구조 분류·Oxford 명명은 **조성 기반 근사**(이성질체·안테나 위치 구분 불가).
+- **절대정량(pmol)은 범위 밖** — 논문처럼 UPLC 형광 + 표준품 검량선이 필요(MS raw만으론 불가).
+- 단일 실행파일 배포: 각 OS에서 `pyinstaller --onefile --add-data "glyco/vendor:glyco/vendor" --add-data "configs:configs" glycan_analyze.py` (크로스컴파일 불가).
