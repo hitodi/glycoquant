@@ -16,13 +16,14 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pytest
 
-from glyco import masses, compositions, mzml_parse, identify
+from glyco import config as cfgmod, compositions, mzml_parse, identify
+from glyco.chem import Chemistry
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 MZML = os.path.join(HERE, "data", "sample.mzML")
 FIXTURE = os.path.join(HERE, "data", "calculator_fixture.json")
 SHEET = "/Users/hitodi/Documents/x-callibur/Alzhemer of brain.xlsx"
-MIN_SPEARMAN = 0.57   # area 정량 기준(현재 +0.60); 회귀 방지 하한
+MIN_SPEARMAN = 0.65   # 출하 기본 경로(area + 진단게이트) 기준 ≈ +0.72; 회귀 하한
 
 
 def _spearman(a, b):
@@ -54,18 +55,24 @@ def _sheet_pct():
 @pytest.mark.skipif(not os.path.exists(MZML), reason="sample.mzML 없음(대용량, 미커밋)")
 @pytest.mark.skipif(not os.path.exists(SHEET), reason="원본 엑셀 없음")
 def test_quant_rank_correlation():
+    cfg = cfgmod.load()                 # 기본 ProA = 출하 기본
+    chem = Chemistry(cfg)
     fix = json.load(open(FIXTURE))
     keyc = lambda c: (c["HexNAc"], c["Hex"], c["dHex"], c["Neu5Ac"], c["Neu5Gc"], c.get("Xyl", 0))
     cands, no_by_key = [], {}
     for rec in fix:
         c = {k: rec[k] for k in ("HexNAc", "Hex", "dHex", "Neu5Ac", "Neu5Gc", "Xyl", "ProA")}
-        cands.append({"composition": c, "neutral": masses.neutral_mass(c),
-                      "formula": masses.formula_str(c), "name": compositions.composition_name(c)})
+        cands.append({"composition": c, "neutral": chem.neutral_mass(c),
+                      "formula": chem.formula_str(c), "name": compositions.composition_name(c),
+                      "oxford": ""})
         no_by_key[keyc(c)] = rec["no"]
 
-    data = mzml_parse.parse(MZML, log=lambda *a: None)
-    res = identify.run(cands, msdata=data, ppm_tol=10, ms1_ppm=5,
-                       require_ms2=True, log=lambda *a: None)
+    # 출하 기본과 동일한 경로: area 정량 + 진단 oxonium 게이트
+    data = mzml_parse.parse(MZML, keep_ms2_peaks=True, log=lambda *a: None)
+    res = identify.run(cands, msdata=data, ppm_tol=cfg.precursor_ppm, ms1_ppm=cfg.ms1_ppm,
+                       require_ms2=True, quant_method="area", chem=chem,
+                       require_diagnostic=cfg.require_diagnostic, ms2_ppm=cfg.ms2_ppm,
+                       log=lambda *a: None)
 
     sheet = _sheet_pct()
     rows = [(no_by_key.get(keyc(r["composition"])), r["relative_pct"]) for r in res]

@@ -67,7 +67,8 @@ def run(candidates, *, msdata, max_charge=3, ppm_tol=10.0,
     chem + require_diagnostic: 진단 oxonium 확인 활성화(MS2 피크 보관 필요).
     """
     adducts = compositions.adduct_ions(max_charge=max_charge)
-    mz_targets, meta = quantify.build_targets(candidates, adducts, masses.ion_mz)
+    ion_mz_fn = chem.ion_mz if chem is not None else masses.ion_mz
+    mz_targets, meta = quantify.build_targets(candidates, adducts, ion_mz_fn)
     log(f"[동정] 후보 {len(candidates)}개 × adduct -> 타깃 {len(mz_targets)}개")
 
     ms2_hits = match_ms2(msdata, mz_targets, meta, ppm_tol=ppm_tol)

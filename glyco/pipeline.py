@@ -34,12 +34,12 @@ def analyze(input_path, *, config_path=None, output=None, work_dir=None,
     use_diag = bool(cfg.require_diagnostic) and not overrides.get("no_diagnostic")
     data = mzml_parse.parse(mzml_path, keep_ms2_peaks=use_diag, log=log)
 
-    # 3) 조성 생성
+    # 3) 조성 생성 (설정의 라벨 화학으로 질량 계산)
     if "ranges" in overrides and overrides["ranges"]:
-        cands = compositions.generate(ranges=overrides["ranges"],
-                                      rules=cfg.plausibility, label_count=cfg.label.count)
+        cands = compositions.generate(ranges=overrides["ranges"], rules=cfg.plausibility,
+                                      label_count=cfg.label.count, chem=chem)
     else:
-        cands = compositions.from_config(cfg)
+        cands = compositions.from_config(cfg, chem=chem)
     log(f"[조성] 후보 {len(cands)}개 생성")
 
     # 4) 동정 + 정량
@@ -53,7 +53,7 @@ def analyze(input_path, *, config_path=None, output=None, work_dir=None,
         min_intensity=overrides.get("min_intensity", 0.0),
         quant_method=overrides.get("quant_method", q.get("method", "area")),
         rt_window=overrides.get("rt_window", q.get("rt_window_min", 0.5)),
-        chem=chem if use_diag else None,
+        chem=chem,                                  # 질량+진단 모두 설정 화학 사용
         require_diagnostic=cfg.require_diagnostic if use_diag else None,
         ms2_ppm=cfg.ms2_ppm,
         log=log,

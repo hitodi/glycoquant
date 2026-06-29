@@ -48,15 +48,19 @@ def _plausible(c: dict, rules: dict) -> bool:
     return True
 
 
-def generate(ranges=None, plausible_only=True, rules=None, label_count=1):
+def generate(ranges=None, plausible_only=True, rules=None, label_count=1, chem=None):
     """
     조성 생성. ranges 는 {name: range} dict 또는 SearchRanges.
+    chem: 질량 계산기(Chemistry). 없으면 기본 ProA(masses 모듈).
     각 결과: {composition, neutral, formula, name, oxford}
     """
     if ranges is None:
         ranges = SearchRanges()
     rdict = ranges.as_dict() if isinstance(ranges, SearchRanges) else dict(ranges)
     rules = rules or {}
+    # 설정 구동 질량: chem 이 있으면 그쪽을, 없으면 기본 ProA shim 사용
+    neutral_fn = chem.neutral_mass if chem is not None else masses.neutral_mass
+    formula_fn = chem.formula_str if chem is not None else masses.formula_str
     names = list(rdict.keys())
     out = []
     for combo in product(*[list(rdict[n]) for n in names]):
@@ -66,19 +70,22 @@ def generate(ranges=None, plausible_only=True, rules=None, label_count=1):
             continue
         out.append({
             "composition": c,
-            "neutral": masses.neutral_mass(c),
-            "formula": masses.formula_str(c),
+            "neutral": neutral_fn(c),
+            "formula": formula_fn(c),
             "name": composition_name(c),
             "oxford": oxford(c),
         })
     return out
 
 
-def from_config(cfg, plausible_only=True):
-    """Config 의 search_ranges/plausibility 로 조성 생성."""
+def from_config(cfg, plausible_only=True, chem=None):
+    """Config 의 search_ranges/plausibility/라벨 화학으로 조성 생성."""
+    if chem is None:
+        from .chem import Chemistry
+        chem = Chemistry(cfg)
     ranges = {n: range(lo, hi + 1) for n, (lo, hi) in cfg.search_ranges.items()}
     return generate(ranges=ranges, plausible_only=plausible_only,
-                    rules=cfg.plausibility, label_count=cfg.label.count)
+                    rules=cfg.plausibility, label_count=cfg.label.count, chem=chem)
 
 
 def composition_name(c: dict) -> str:
