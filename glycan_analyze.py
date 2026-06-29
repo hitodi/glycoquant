@@ -29,6 +29,7 @@ def main(argv=None):
     p.add_argument("--max-charge", type=int, help="최대 전하수")
     p.add_argument("--quant", choices=["area", "apex"], help="정량 방식")
     p.add_argument("--rt-window", type=float, help="면적적분 RT 윈도우(분)")
+    p.add_argument("--rt-consistency", type=float, help="adduct 합산 RT 일치 허용(분); 0=끔")
     p.add_argument("--no-ms2", action="store_true", help="MS2 근거 없이도 정량")
     p.add_argument("--no-diagnostic", action="store_true", help="진단 oxonium 확인 끄기")
     p.add_argument("--min-intensity", type=float, help="이 값 미만 adduct 무시")
@@ -45,6 +46,8 @@ def main(argv=None):
     if args.max_charge is not None: overrides["max_charge"] = args.max_charge
     if args.quant: overrides["quant_method"] = args.quant
     if args.rt_window is not None: overrides["rt_window"] = args.rt_window
+    if args.rt_consistency is not None:
+        overrides["rt_consistency"] = args.rt_consistency or None
     if args.no_ms2: overrides["require_ms2"] = False
     if args.no_diagnostic: overrides["no_diagnostic"] = True
     if args.min_intensity is not None: overrides["min_intensity"] = args.min_intensity

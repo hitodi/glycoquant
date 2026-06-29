@@ -23,7 +23,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 MZML = os.path.join(HERE, "data", "sample.mzML")
 FIXTURE = os.path.join(HERE, "data", "calculator_fixture.json")
 SHEET = "/Users/hitodi/Documents/x-callibur/Alzhemer of brain.xlsx"
-MIN_SPEARMAN = 0.65   # 출하 기본 경로(area + 진단게이트) 기준 ≈ +0.72; 회귀 하한
+MIN_SPEARMAN = 0.70   # 출하 기본(area+진단게이트+RT일치) ≈ +0.76; 회귀 하한
 
 
 def _spearman(a, b):

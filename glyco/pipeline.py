@@ -53,6 +53,7 @@ def analyze(input_path, *, config_path=None, output=None, work_dir=None,
         min_intensity=overrides.get("min_intensity", 0.0),
         quant_method=overrides.get("quant_method", q.get("method", "area")),
         rt_window=overrides.get("rt_window", q.get("rt_window_min", 0.5)),
+        rt_consistency=overrides.get("rt_consistency", q.get("rt_consistency_min", 1.0)),
         chem=chem,                                  # 질량+진단 모두 설정 화학 사용
         require_diagnostic=cfg.require_diagnostic if use_diag else None,
         ms2_ppm=cfg.ms2_ppm,

@@ -59,7 +59,7 @@ def match_ms2(msdata, mz_targets, meta, ppm_tol=10.0):
 
 def run(candidates, *, msdata, max_charge=3, ppm_tol=10.0,
         ms1_ppm=5.0, require_ms2=True, min_intensity=0.0,
-        quant_method="area", rt_window=0.5,
+        quant_method="area", rt_window=0.5, rt_consistency=1.0,
         chem=None, require_diagnostic=None, ms2_ppm=20.0, log=print):
     """전체 동정+정량 파이프라인. 반환: 결과 dict 리스트(상대량 내림차순).
 
@@ -108,9 +108,9 @@ def run(candidates, *, msdata, max_charge=3, ppm_tol=10.0,
     else:
         signal, apex_rt, apex_mz = quantify.area(xic, rt_window=rt_window)
 
-    # cand_idx -> adduct별 강도 집계
+    # 1차: cand_idx -> 검출된 adduct 후보 수집(아직 합산 전)
     from collections import defaultdict
-    per = defaultdict(lambda: {"sum": 0.0, "adducts": [], "rt": None, "best": 0.0})
+    raw = defaultdict(list)
     for local_i, target_i in enumerate(sel):
         m = meta[target_i]
         inten = float(signal[local_i])
@@ -120,15 +120,22 @@ def run(candidates, *, msdata, max_charge=3, ppm_tol=10.0,
         amz = float(apex_mz[local_i])
         if amz != amz or abs(_ppm(amz, m["mz"])) > ms1_ppm:   # NaN 또는 ppm 초과
             continue
-        ci = m["cand_idx"]
-        per[ci]["sum"] += inten
-        per[ci]["adducts"].append({
+        raw[m["cand_idx"]].append({
             "adduct": compositions.adduct_label(m["adduct"]), "z": m["z"],
             "mz": m["mz"], "intensity": inten, "rt": float(apex_rt[local_i]),
         })
-        if inten > per[ci]["best"]:
-            per[ci]["best"] = inten
-            per[ci]["rt"] = float(apex_rt[local_i])
+
+    # 2차: RT 일치 필터 — 주 피크(최대강도)와 같은 RT 의 adduct만 합산
+    #      (같은 m/z 의 다른 co-eluting 분자를 잘못 주워담는 것 방지)
+    per = {}
+    for ci, ads in raw.items():
+        main = max(ads, key=lambda a: a["intensity"])
+        if rt_consistency:
+            kept = [a for a in ads if abs(a["rt"] - main["rt"]) <= rt_consistency]
+        else:
+            kept = ads
+        per[ci] = {"sum": sum(a["intensity"] for a in kept), "adducts": kept,
+                   "rt": main["rt"], "best": main["intensity"]}
 
     total = sum(v["sum"] for v in per.values())
     results = []

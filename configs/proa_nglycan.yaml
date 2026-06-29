@@ -54,9 +54,10 @@ tolerances:
 
 # --- 정량 ---
 quantify:
-  method: area         # area | apex   (논문 §2.5 = EIC 면적)
-  rt_window_min: 0.5   # apex 기준 ±분, 면적 적분 구간
-  require_ms2: true    # MS2 근거 있는 글리칸만 정량
+  method: area            # area | apex   (논문 §2.5 = EIC 면적)
+  rt_window_min: 0.5      # apex 기준 ±분, 면적 적분 구간
+  rt_consistency_min: 1.0 # 주 피크와 이 시간차 이내의 adduct만 합산(공동용출 오합산 방지)
+  require_ms2: true       # MS2 근거 있는 글리칸만 정량
 
 # --- 진단(oxonium/단편) 이온: MS2 확인용 ---
 # kind: oxonium = 잔기합+proton(B형) / reducing = 라벨포함 환원말단단편+proton(Y형)

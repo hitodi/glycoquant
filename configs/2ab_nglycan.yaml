@@ -45,6 +45,7 @@ tolerances:
 quantify:
   method: area
   rt_window_min: 0.5
+  rt_consistency_min: 1.0
   require_ms2: true
 
 diagnostic_ions:
