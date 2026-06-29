@@ -1,0 +1,15 @@
+# 변환 임시물 / 결과
+_glycan_work/
+*.mzML
+*_glycans.xlsx
+
+# Thermo 변환기 번들(용량 큼) — setup_thermo.py 로 각 PC에서 받음
+glyco/vendor/
+
+# 파이썬
+__pycache__/
+*.pyc
+.venv/
+build/
+dist/
+*.spec
