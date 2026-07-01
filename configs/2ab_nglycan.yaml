@@ -35,7 +35,7 @@ plausibility:
   min_hex: 3
   sialic_le_antennae: true
   fucose_le_antennae_plus1: true
-  highmannose_no_sia_fuc: true
+  highmannose_no_sia: true    # HexNAc2엔 시알산만 금지(코어푸코 FM3 등은 허용)
 
 tolerances:
   precursor_ppm: 10

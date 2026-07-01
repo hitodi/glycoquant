@@ -43,7 +43,9 @@ def _plausible(c: dict, rules: dict) -> bool:
         return False
     if rules.get("fucose_le_antennae_plus1", True) and fuc > antennae + 1:
         return False
-    if rules.get("highmannose_no_sia_fuc", True) and hexnac == 2 and (sia or fuc):
+    # high-mannose(HexNAc2)엔 시알산은 불가(안테나 없음)하나 코어푸코(FM3 등)는 허용.
+    # 푸코 개수는 위 fucose_le_antennae_plus1 규칙이 이미 ≤1(코어)로 제한함.
+    if rules.get("highmannose_no_sia", True) and hexnac == 2 and sia:
         return False
     return True
 
