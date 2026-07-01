@@ -57,6 +57,37 @@ def match_ms2(msdata, mz_targets, meta, ppm_tol=10.0):
     return hits
 
 
+def screening_table(msdata, diag_table, ppm=20.0, anchor="HexNAc"):
+    """
+    Xcalibur 수작업 '스크리닝 시트' 재현.
+    각 MS2 스캔에서 진단이온(oxonium)들의 관측 m/z + precursor/charge/RT 를 뽑는다.
+    anchor 이온(기본 HexNAc 204)이 보이는 스캔(=글리칸 후보)만 반환.
+    반환: (rows, ion_names)  — rows[i] = dict(scan, rt, precursor, charge, ions={name:obs_mz})
+    """
+    import numpy as np
+    ion_names = [n for n, _ in diag_table]
+    rows = []
+    for rt, pmz, z, scan in msdata.ms2:
+        pk = msdata.ms2_peaks.get(scan)
+        if pk is None:
+            continue
+        mz = np.sort(pk[0])
+        ions = {}
+        for name, target in diag_table:
+            i = np.searchsorted(mz, target)
+            best = None
+            for j in (i, i - 1):
+                if 0 <= j < mz.size and abs(mz[j] - target) / target * 1e6 <= ppm:
+                    if best is None or abs(mz[j] - target) < abs(best - target):
+                        best = float(mz[j])
+            ions[name] = best
+        if anchor and ions.get(anchor) is None:
+            continue
+        rows.append({"scan": scan, "rt": rt, "precursor": pmz, "charge": z, "ions": ions})
+    rows.sort(key=lambda r: r["rt"])
+    return rows, ion_names
+
+
 def run(candidates, *, msdata, max_charge=3, ppm_tol=10.0,
         ms1_ppm=5.0, require_ms2=True, min_intensity=0.0,
         quant_method="area", rt_window=0.5, rt_consistency=1.0,

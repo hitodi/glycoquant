@@ -39,6 +39,8 @@ def main(argv=None):
     p.add_argument("--no-ms2", action="store_true", help="MS2 근거 없이도 정량")
     p.add_argument("--no-diagnostic", action="store_true", help="진단 oxonium 확인 끄기")
     p.add_argument("--min-intensity", type=float, help="이 값 미만 adduct 무시")
+    p.add_argument("--no-screening", action="store_true",
+                   help="스크리닝 시트(스캔별 진단이온/precursor) 생략")
     p.add_argument("--keep-mzml", action="store_true", help="변환 mzML 보존")
     args = p.parse_args(argv)
 
@@ -59,6 +61,7 @@ def main(argv=None):
     if args.ms1_first_ppm is not None: overrides["ms1_first_ppm"] = args.ms1_first_ppm
     if args.ms1_noise_factor is not None: overrides["ms1_noise_factor"] = args.ms1_noise_factor
     if args.no_ms2: overrides["require_ms2"] = False
+    if args.no_screening: overrides["no_screening"] = True
     if args.no_diagnostic: overrides["no_diagnostic"] = True
     if args.min_intensity is not None: overrides["min_intensity"] = args.min_intensity
 

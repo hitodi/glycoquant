@@ -34,7 +34,7 @@ def _autofit(ws, widths):
         ws.column_dimensions[get_column_letter(i)].width = w
 
 
-def write(results, out_path, meta=None):
+def write(results, out_path, meta=None, screening=None, screening_ions=None):
     wb = Workbook()
 
     # ---------- Glycans ----------
@@ -165,6 +165,30 @@ def write(results, out_path, meta=None):
                 cell.number_format = "#,##0"
     _autofit(ad, [30, 13, 10, 8, 13, 10, 16])
     ad.freeze_panes = "A3"
+
+    # ---------- Screening (Xcalibur 수작업 대체: 스캔별 진단이온/precursor) ----------
+    if screening is not None and screening_ions:
+        sc = wb.create_sheet("Screening")
+        sc.append(["Per-MS2-scan diagnostic ions (Xcalibur 수작업 대체)"])
+        sc["A1"].font = TITLE_FONT
+        hdr = ["Scan No", "RT (min)"] + [f"{n}\n(obs m/z)" for n in screening_ions] \
+            + ["Precursor m/z", "Charge", "비고"]
+        sc.append(hdr)
+        _style_header(sc, 2, len(hdr))
+        for row in screening:
+            line = [int(row["scan"]) if str(row["scan"]).isdigit() else row["scan"],
+                    round(row["rt"], 2)]
+            for n in screening_ions:
+                v = row["ions"].get(n)
+                line.append(round(v, 4) if v else None)
+            line += [round(row["precursor"], 4), row["charge"] if row["charge"] else "?", None]
+            sc.append(line)
+        for rr in range(3, sc.max_row + 1):
+            for cc in range(1, len(hdr) + 1):
+                sc.cell(rr, cc).font = Font(name=FONT)
+                sc.cell(rr, cc).border = BORDER
+        _autofit(sc, [9, 8] + [13] * len(screening_ions) + [14, 7, 14])
+        sc.freeze_panes = "A3"
 
     wb.save(out_path)
     return out_path

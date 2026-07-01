@@ -30,9 +30,10 @@ def analyze(input_path, *, config_path=None, output=None, work_dir=None,
     # 1) raw -> mzML
     mzml_path = raw.to_mzml(input_path, work, log=log)
 
-    # 2) 파싱 (진단이온 확인 시 MS2 피크 보관)
+    # 2) 파싱 (진단이온 확인 또는 스크리닝 시트 → MS2 피크 보관)
     use_diag = bool(cfg.require_diagnostic) and not overrides.get("no_diagnostic")
-    data = mzml_parse.parse(mzml_path, keep_ms2_peaks=use_diag, log=log)
+    want_screening = not overrides.get("no_screening")
+    data = mzml_parse.parse(mzml_path, keep_ms2_peaks=(use_diag or want_screening), log=log)
 
     # 3) 조성 생성 (설정의 라벨 화학으로 질량 계산)
     if "ranges" in overrides and overrides["ranges"]:
@@ -66,10 +67,14 @@ def analyze(input_path, *, config_path=None, output=None, work_dir=None,
         log=log,
     )
 
-    # 5) 리포트
+    # 5) 스크리닝 시트(Xcalibur 수작업 대체) + 리포트
+    screening = screening_ions = None
+    if want_screening and data.ms2_peaks:
+        screening, screening_ions = identify.screening_table(data, chem.diagnostic_table())
+        log(f"[스크리닝] 글리칸 스캔 {len(screening)}개 표로 추출")
     if results:
         meta = {"sample": os.path.basename(input_path), "source": cfg.name}
-        report.write(results, out, meta=meta)
+        report.write(results, out, meta=meta, screening=screening, screening_ions=screening_ions)
 
     # 정리
     if not keep_mzml and mzml_path.startswith(work):

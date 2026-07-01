@@ -22,8 +22,12 @@ Thermo `.raw`(또는 `.mzML`)에서 **환원말단 표지(ProA 등) 글리칸을
   → MS1 정밀질량 게이트(<5 ppm)
   → 각 adduct XIC '면적' 합산 → 상대량(%)          (논문 §2.5)
   → High-mannose/Hybrid/Complex 분류 + Oxford 명명(FA2, M5…)
-  → 엑셀(Glycans / Summary / Adducts)
+  → 엑셀(Glycans / Summary / Adducts / Screening)
 ```
+
+**Screening 시트** = Xcalibur 에서 스캔마다 손으로 옮기던 그 표를 자동 생성.
+각 MS2 스캔의 Scan No · RT · 진단이온(204/366/292/308/441/587) 관측 m/z ·
+Precursor m/z · Charge 를 전부 덤프(HexNAc 204 보이는 글리칸 스캔만). `--no-screening` 으로 끔.
 
 ### 검증 (tests/)
 | 항목 | 기준 | 현재 |
