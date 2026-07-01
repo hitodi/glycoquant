@@ -76,6 +76,10 @@ def evaluate(config_path=None, overrides=None, label="", verbose=True):
         require_diagnostic=(None if overrides.get("no_diagnostic")
                             else overrides.get("require_diagnostic", cfg.require_diagnostic)),
         ms2_ppm=overrides.get("ms2_ppm", cfg.ms2_ppm),
+        ms1_first=overrides.get("ms1_first", False),
+        ms1_min_adducts=overrides.get("ms1_min_adducts", 3),
+        ms1_first_ppm=overrides.get("ms1_first_ppm", 5.0),
+        ms1_noise_factor=overrides.get("ms1_noise_factor", 15.0),
         log=lambda *a: None,
     )
     tot = sum(r["intensity_sum"] for r in res) or 1.0

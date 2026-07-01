@@ -91,6 +91,38 @@ def area(xic, rt_window=0.5):
     return areas, apex_rt, apex_mz
 
 
+def apex_scan(msdata, mz_targets, ppm_tol=5.0, log=print):
+    """
+    메모리 절약형 apex 추출: 전체 강도행렬을 만들지 않고 스트리밍으로
+    각 타깃의 apex(강도/RT/정밀 m/z)만 구한다. 대량 타깃(수만 개)용.
+    반환: (apex_int, apex_rt, apex_mz)
+    """
+    nt = len(mz_targets)
+    best_int = np.zeros(nt, dtype=np.float64)
+    best_rt = np.full(nt, np.nan, dtype=np.float64)
+    best_mz = np.full(nt, np.nan, dtype=np.float64)
+    tol = mz_targets * ppm_tol * 1e-6
+    for k, (rt, mz, inten) in enumerate(msdata.ms1):
+        if mz.size == 0:
+            continue
+        idx = np.clip(np.searchsorted(mz, mz_targets), 1, mz.size - 1)
+        left = idx - 1
+        dl = np.abs(mz[left] - mz_targets)
+        dr = np.abs(mz[idx] - mz_targets)
+        use_left = dl <= dr
+        nearest = np.where(use_left, left, idx)
+        ndist = np.where(use_left, dl, dr)
+        peak = inten[nearest]
+        hit = ndist <= tol
+        upd = hit & (peak > best_int)
+        best_int[upd] = peak[upd]
+        best_rt[upd] = rt
+        best_mz[upd] = mz[nearest][upd]
+        if log and k % 500 == 0 and k:
+            log(f"[MS1스캔] {k}/{len(msdata.ms1)}...")
+    return best_int, best_rt, best_mz
+
+
 # --- 하위호환: 단일 함수형 apex 추출 ---
 def xic_apex(msdata, mz_targets, ppm_tol=10.0, log=print):
     xic = extract_xic(msdata, mz_targets, ppm_tol=ppm_tol, log=log)

@@ -40,6 +40,7 @@ class Config:
     plausibility: dict
     tolerances: dict
     quantify: dict
+    ms1_first: dict                # MS1-first 모드 설정
     diagnostic_ions: list          # [DiagnosticIon]
     require_diagnostic: list
 
@@ -75,6 +76,7 @@ def load(path: str = None) -> Config:
         plausibility=dict(d.get("plausibility", {})),
         tolerances=dict(d.get("tolerances", {})),
         quantify=dict(d.get("quantify", {})),
+        ms1_first=dict(d.get("ms1_first", {})),
         diagnostic_ions=diag,
         require_diagnostic=list(d.get("require_diagnostic", [])),
     )

@@ -44,6 +44,8 @@ def analyze(input_path, *, config_path=None, output=None, work_dir=None,
 
     # 4) 동정 + 정량
     q = cfg.quantify
+    mf = cfg.ms1_first
+    ms1_first_on = overrides.get("ms1_first", mf.get("enabled", False))
     results = identify.run(
         cands, msdata=data,
         max_charge=overrides.get("max_charge", cfg.max_charge),
@@ -57,6 +59,10 @@ def analyze(input_path, *, config_path=None, output=None, work_dir=None,
         chem=chem,                                  # 질량+진단 모두 설정 화학 사용
         require_diagnostic=cfg.require_diagnostic if use_diag else None,
         ms2_ppm=cfg.ms2_ppm,
+        ms1_first=ms1_first_on,
+        ms1_min_adducts=overrides.get("ms1_min_adducts", mf.get("min_adducts", 3)),
+        ms1_first_ppm=overrides.get("ms1_first_ppm", mf.get("ppm", 3.0)),
+        ms1_noise_factor=overrides.get("ms1_noise_factor", mf.get("noise_factor", 70.0)),
         log=log,
     )
 

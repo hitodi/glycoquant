@@ -30,6 +30,12 @@ def main(argv=None):
     p.add_argument("--quant", choices=["area", "apex"], help="정량 방식")
     p.add_argument("--rt-window", type=float, help="면적적분 RT 윈도우(분)")
     p.add_argument("--rt-consistency", type=float, help="adduct 합산 RT 일치 허용(분); 0=끔")
+    p.add_argument("--ms1-first", action="store_true",
+                   help="MS1-first 모드: 조각화 안 된(시알산 등) 글리칸을 co-eluting adduct로 회수. "
+                        "⚠️정밀도↓/회수↑ 트레이드오프 — 시알산 풍부 시료에서만 권장")
+    p.add_argument("--ms1-min-adducts", type=int, help="MS1-first: 같은 RT 공존 adduct 최소 수(기본 3)")
+    p.add_argument("--ms1-first-ppm", type=float, help="MS1-first: MS1 정밀질량 ppm(기본 3)")
+    p.add_argument("--ms1-noise-factor", type=float, help="MS1-first: 강도하한=노이즈median×이값(기본 70)")
     p.add_argument("--no-ms2", action="store_true", help="MS2 근거 없이도 정량")
     p.add_argument("--no-diagnostic", action="store_true", help="진단 oxonium 확인 끄기")
     p.add_argument("--min-intensity", type=float, help="이 값 미만 adduct 무시")
@@ -48,6 +54,10 @@ def main(argv=None):
     if args.rt_window is not None: overrides["rt_window"] = args.rt_window
     if args.rt_consistency is not None:
         overrides["rt_consistency"] = args.rt_consistency or None
+    if args.ms1_first: overrides["ms1_first"] = True
+    if args.ms1_min_adducts is not None: overrides["ms1_min_adducts"] = args.ms1_min_adducts
+    if args.ms1_first_ppm is not None: overrides["ms1_first_ppm"] = args.ms1_first_ppm
+    if args.ms1_noise_factor is not None: overrides["ms1_noise_factor"] = args.ms1_noise_factor
     if args.no_ms2: overrides["require_ms2"] = False
     if args.no_diagnostic: overrides["no_diagnostic"] = True
     if args.min_intensity is not None: overrides["min_intensity"] = args.min_intensity

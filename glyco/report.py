@@ -43,7 +43,7 @@ def write(results, out_path, meta=None):
     headers = ["No.", "Oxford", "Name (composition)", "HexNAc", "Hex", "dHex/Fuc",
                "Neu5Ac", "Neu5Gc", "Type", "Sialylated", "Fucosylated",
                "Best ion m/z", "Adduct", "Charge", "RT (min)",
-               "MS2 #", "ppm", "Quant (sum)", "Relative %"]
+               "MS2 #", "Evidence", "ppm", "Quant (sum)", "Relative %"]
     ws.append(["N-glycan analysis result"])
     ws["A1"].font = TITLE_FONT
     if meta:
@@ -69,6 +69,7 @@ def write(results, out_path, meta=None):
             r["best_adduct"], r["best_z"],
             round(r["rt"], 2) if r["rt"] is not None else None,
             r["ms2_count"],
+            r.get("evidence", "MS2"),
             round(r["best_ppm"], 2) if r["best_ppm"] is not None else None,
             r["intensity_sum"], None,
         ]
@@ -96,7 +97,7 @@ def write(results, out_path, meta=None):
             cell.border = BORDER
             if cc in (inten_col,):
                 cell.number_format = "#,##0"
-    _autofit(ws, [5, 12, 28, 8, 7, 9, 8, 8, 13, 10, 11, 13, 10, 8, 9, 7, 7, 16, 11])
+    _autofit(ws, [5, 12, 28, 8, 7, 9, 8, 8, 13, 10, 11, 13, 10, 8, 9, 7, 10, 7, 16, 11])
     ws.freeze_panes = ws.cell(first, 1)
 
     # ---------- Summary ----------

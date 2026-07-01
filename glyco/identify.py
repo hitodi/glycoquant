@@ -60,11 +60,15 @@ def match_ms2(msdata, mz_targets, meta, ppm_tol=10.0):
 def run(candidates, *, msdata, max_charge=3, ppm_tol=10.0,
         ms1_ppm=5.0, require_ms2=True, min_intensity=0.0,
         quant_method="area", rt_window=0.5, rt_consistency=1.0,
-        chem=None, require_diagnostic=None, ms2_ppm=20.0, log=print):
+        chem=None, require_diagnostic=None, ms2_ppm=20.0,
+        ms1_first=False, ms1_min_adducts=3, ms1_first_ppm=3.0,
+        ms1_noise_factor=70.0, log=print):
     """전체 동정+정량 파이프라인. 반환: 결과 dict 리스트(상대량 내림차순).
 
     quant_method: 'area'(EIC 면적, 논문방식) | 'apex'(피크높이)
     chem + require_diagnostic: 진단 oxonium 확인 활성화(MS2 피크 보관 필요).
+    ms1_first: MS2 없이도 '같은 RT에 co-eluting adduct ≥ ms1_min_adducts' 이면
+               글리칸으로 인정(시알산 등 조각화 안 된 것 회수). MS2 경로와 합집합.
     """
     adducts = compositions.adduct_ions(max_charge=max_charge)
     ion_mz_fn = chem.ion_mz if chem is not None else masses.ion_mz
@@ -74,27 +78,54 @@ def run(candidates, *, msdata, max_charge=3, ppm_tol=10.0,
     ms2_hits = match_ms2(msdata, mz_targets, meta, ppm_tol=ppm_tol)
     log(f"[동정] MS2 근거가 있는 후보 {len(ms2_hits)}개")
 
-    # 정량 대상 결정
+    # --- 경로 1 (MS2): precursor 매칭 + (선택) 진단 oxonium 확인 ---
     if require_ms2:
-        keep = set(ms2_hits.keys())
+        ms2_keep = set(ms2_hits.keys())
     else:
-        keep = set(range(len(candidates)))
-
-    # 진단 oxonium 확인(선택): required 이온을 가진 MS2 스캔이 하나라도 있어야 인정
+        ms2_keep = set(range(len(candidates)))
     if require_diagnostic and chem is not None and msdata.ms2_peaks:
         diag_table = chem.diagnostic_table()
-        before = len(keep)
+        before = len(ms2_keep)
         confirmed = set()
-        for ci in list(keep):
+        for ci in list(ms2_keep):
             for h in ms2_hits.get(ci, []):
-                ok = diagnostic.confirm_scan(msdata, h["scan"], diag_table,
-                                             require_diagnostic, ppm_tol=ms2_ppm)
-                if ok:
+                if diagnostic.confirm_scan(msdata, h["scan"], diag_table,
+                                           require_diagnostic, ppm_tol=ms2_ppm):
                     confirmed.add(ci)
                     break
-        keep = confirmed
-        log(f"[동정] 진단이온 확인 통과 {len(keep)}/{before}개")
+        ms2_keep = confirmed
+        log(f"[동정] 진단이온 확인 통과 {len(ms2_keep)}/{before}개")
 
+    # --- 경로 2 (MS1-first): co-eluting adduct 다수로 인정 (MS2 불필요) ---
+    ms1_keep = set()
+    ms1_evidence = {}
+    if ms1_first:
+        # 강도 하한 = 노이즈 median × factor.
+        # (노이즈는 장비 특성이라 시료 로딩·동적범위와 무관 → 시료 간 일반화됨)
+        import numpy as _np
+        allint = _np.concatenate([it for _, _, it in msdata.ms1 if it.size]) \
+            if msdata.ms1 else _np.array([0.0])
+        noise = float(_np.median(allint)) if allint.size else 0.0
+        floor = ms1_noise_factor * noise
+        a_int, a_rt, a_mz = quantify.apex_scan(msdata, mz_targets, ppm_tol=ms1_first_ppm, log=log)
+        from collections import defaultdict
+        by_cand = defaultdict(list)   # ci -> [(intensity, rt), ...] (정밀질량·강도 통과분)
+        for i, m in enumerate(meta):
+            amz = a_mz[i]
+            if amz != amz or a_int[i] <= floor:
+                continue
+            if abs(_ppm(amz, m["mz"])) > ms1_first_ppm:
+                continue
+            by_cand[m["cand_idx"]].append((a_int[i], a_rt[i]))
+        for ci, lst in by_cand.items():
+            dom_rt = max(lst, key=lambda x: x[0])[1]     # 최강 adduct 의 RT
+            n_co = sum(1 for _, rt in lst if abs(rt - dom_rt) <= rt_consistency)
+            if n_co >= ms1_min_adducts:
+                ms1_keep.add(ci)
+                ms1_evidence[ci] = n_co
+        log(f"[동정] MS1-first (co-eluting adduct≥{ms1_min_adducts}) 통과 {len(ms1_keep)}개")
+
+    keep = ms2_keep | ms1_keep
     if not keep:
         log("[경고] 동정된 글리칸이 없습니다 (ppm 허용오차/범위를 확인하세요).")
         return []
@@ -146,6 +177,11 @@ def run(candidates, *, msdata, max_charge=3, ppm_tol=10.0,
         c = cand["composition"]
         cls = classify.classify(c)
         m2 = ms2_hits.get(ci, [])
+        ev = []
+        if ci in ms2_keep:
+            ev.append("MS2")
+        if ci in ms1_keep:
+            ev.append("MS1")
         best_adduct = max(v["adducts"], key=lambda a: a["intensity"]) if v["adducts"] else None
         results.append({
             "name": cand["name"],
@@ -163,6 +199,8 @@ def run(candidates, *, msdata, max_charge=3, ppm_tol=10.0,
             "best_z": best_adduct["z"] if best_adduct else None,
             "rt": v["rt"],
             "ms2_count": len(m2),
+            "evidence": "+".join(ev) or "MS1",
+            "ms1_adducts": ms1_evidence.get(ci),
             "best_ppm": min((abs(h["ppm"]) for h in m2), default=None),
             "intensity_sum": v["sum"],
             "relative_pct": v["sum"] / total * 100 if total else 0.0,

@@ -59,6 +59,16 @@ quantify:
   rt_consistency_min: 1.0 # 주 피크와 이 시간차 이내의 adduct만 합산(공동용출 오합산 방지)
   require_ms2: true       # MS2 근거 있는 글리칸만 정량
 
+# --- MS1-first 모드 (opt-in, 기본 off) ---
+# MS2 조각화 안 된 글리칸(특히 시알산)을 '같은 RT에 co-eluting adduct 다수'로 회수.
+# ⚠️ 정밀도↔회수 트레이드오프. 시알산 풍부 시료에서만 켜기 권장.
+# noise_factor=70 은 음성대조군(시알산 없는 시료)에 위양성을 안 늘리는 값으로 검증됨.
+ms1_first:
+  enabled: false
+  min_adducts: 3          # 같은 RT에 이만큼 adduct 공존해야 인정
+  ppm: 3.0                # MS1 정밀질량 허용
+  noise_factor: 70        # 강도 하한 = (MS1 노이즈 median) × 이 값
+
 # --- 진단(oxonium/단편) 이온: MS2 확인용 ---
 # kind: oxonium = 잔기합+proton(B형) / reducing = 라벨포함 환원말단단편+proton(Y형)
 diagnostic_ions:
