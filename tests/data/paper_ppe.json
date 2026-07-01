@@ -1,0 +1,418 @@
+[
+ {
+  "no": 1,
+  "name": "FA2",
+  "type": "Complex",
+  "pct": 17.7,
+  "composition": {
+   "HexNAc": 4,
+   "Hex": 3,
+   "dHex": 1,
+   "Neu5Ac": 0,
+   "Neu5Gc": 0
+  }
+ },
+ {
+  "no": 2,
+  "name": "M6",
+  "type": "High-Man",
+  "pct": 9.0,
+  "composition": {
+   "HexNAc": 2,
+   "Hex": 6,
+   "dHex": 0,
+   "Neu5Ac": 0,
+   "Neu5Gc": 0
+  }
+ },
+ {
+  "no": 3,
+  "name": "M7",
+  "type": "High-Man",
+  "pct": 8.0,
+  "composition": {
+   "HexNAc": 2,
+   "Hex": 7,
+   "dHex": 0,
+   "Neu5Ac": 0,
+   "Neu5Gc": 0
+  }
+ },
+ {
+  "no": 4,
+  "name": "FA2G1Sg1",
+  "type": "Complex",
+  "pct": 6.6,
+  "composition": {
+   "HexNAc": 4,
+   "Hex": 4,
+   "dHex": 1,
+   "Neu5Ac": 0,
+   "Neu5Gc": 1
+  }
+ },
+ {
+  "no": 5,
+  "name": "M5",
+  "type": "High-Man",
+  "pct": 6.4,
+  "composition": {
+   "HexNAc": 2,
+   "Hex": 5,
+   "dHex": 0,
+   "Neu5Ac": 0,
+   "Neu5Gc": 0
+  }
+ },
+ {
+  "no": 6,
+  "name": "FA2G2S2",
+  "type": "Complex",
+  "pct": 6.3,
+  "composition": {
+   "HexNAc": 4,
+   "Hex": 5,
+   "dHex": 1,
+   "Neu5Ac": 2,
+   "Neu5Gc": 0
+  }
+ },
+ {
+  "no": 7,
+  "name": "FA2G1",
+  "type": "Complex",
+  "pct": 6.0,
+  "composition": {
+   "HexNAc": 4,
+   "Hex": 4,
+   "dHex": 1,
+   "Neu5Ac": 0,
+   "Neu5Gc": 0
+  }
+ },
+ {
+  "no": 8,
+  "name": "FA3",
+  "type": "Complex",
+  "pct": 5.3,
+  "composition": {
+   "HexNAc": 5,
+   "Hex": 3,
+   "dHex": 1,
+   "Neu5Ac": 0,
+   "Neu5Gc": 0
+  }
+ },
+ {
+  "no": 9,
+  "name": "FA1",
+  "type": "Hybrid",
+  "pct": 3.3,
+  "composition": {
+   "HexNAc": 3,
+   "Hex": 3,
+   "dHex": 1,
+   "Neu5Ac": 0,
+   "Neu5Gc": 0
+  }
+ },
+ {
+  "no": 10,
+  "name": "M8",
+  "type": "High-Man",
+  "pct": 3.3,
+  "composition": {
+   "HexNAc": 2,
+   "Hex": 8,
+   "dHex": 0,
+   "Neu5Ac": 0,
+   "Neu5Gc": 0
+  }
+ },
+ {
+  "no": 11,
+  "name": "FA3G1Sg1",
+  "type": "Complex",
+  "pct": 2.5,
+  "composition": {
+   "HexNAc": 5,
+   "Hex": 4,
+   "dHex": 1,
+   "Neu5Ac": 0,
+   "Neu5Gc": 1
+  }
+ },
+ {
+  "no": 12,
+  "name": "FA2G2Sg1",
+  "type": "Complex",
+  "pct": 2.0,
+  "composition": {
+   "HexNAc": 4,
+   "Hex": 5,
+   "dHex": 1,
+   "Neu5Ac": 0,
+   "Neu5Gc": 1
+  }
+ },
+ {
+  "no": 13,
+  "name": "FA3G1",
+  "type": "Complex",
+  "pct": 1.9,
+  "composition": {
+   "HexNAc": 5,
+   "Hex": 4,
+   "dHex": 1,
+   "Neu5Ac": 0,
+   "Neu5Gc": 0
+  }
+ },
+ {
+  "no": 14,
+  "name": "FA4",
+  "type": "Complex",
+  "pct": 1.8,
+  "composition": {
+   "HexNAc": 6,
+   "Hex": 3,
+   "dHex": 1,
+   "Neu5Ac": 0,
+   "Neu5Gc": 0
+  }
+ },
+ {
+  "no": 15,
+  "name": "M4",
+  "type": "High-Man",
+  "pct": 1.8,
+  "composition": {
+   "HexNAc": 2,
+   "Hex": 4,
+   "dHex": 0,
+   "Neu5Ac": 0,
+   "Neu5Gc": 0
+  }
+ },
+ {
+  "no": 16,
+  "name": "FA2G2S1Sg1",
+  "type": "Complex",
+  "pct": 1.7,
+  "composition": {
+   "HexNAc": 4,
+   "Hex": 5,
+   "dHex": 1,
+   "Neu5Ac": 1,
+   "Neu5Gc": 1
+  }
+ },
+ {
+  "no": 17,
+  "name": "FA2G2",
+  "type": "Complex",
+  "pct": 1.7,
+  "composition": {
+   "HexNAc": 4,
+   "Hex": 5,
+   "dHex": 1,
+   "Neu5Ac": 0,
+   "Neu5Gc": 0
+  }
+ },
+ {
+  "no": 18,
+  "name": "FA2G2S1",
+  "type": "Complex",
+  "pct": 1.6,
+  "composition": {
+   "HexNAc": 4,
+   "Hex": 5,
+   "dHex": 1,
+   "Neu5Ac": 1,
+   "Neu5Gc": 0
+  }
+ },
+ {
+  "no": 19,
+  "name": "M3",
+  "type": "High-Man",
+  "pct": 1.1,
+  "composition": {
+   "HexNAc": 2,
+   "Hex": 3,
+   "dHex": 0,
+   "Neu5Ac": 0,
+   "Neu5Gc": 0
+  }
+ },
+ {
+  "no": 20,
+  "name": "M9",
+  "type": "High-Man",
+  "pct": 1.1,
+  "composition": {
+   "HexNAc": 2,
+   "Hex": 9,
+   "dHex": 0,
+   "Neu5Ac": 0,
+   "Neu5Gc": 0
+  }
+ },
+ {
+  "no": 21,
+  "name": "FA2G1S1",
+  "type": "Complex",
+  "pct": 1.1,
+  "composition": {
+   "HexNAc": 4,
+   "Hex": 4,
+   "dHex": 1,
+   "Neu5Ac": 1,
+   "Neu5Gc": 0
+  }
+ },
+ {
+  "no": 22,
+  "name": "FA3G2Sg1",
+  "type": "Complex",
+  "pct": 1.1,
+  "composition": {
+   "HexNAc": 5,
+   "Hex": 5,
+   "dHex": 1,
+   "Neu5Ac": 0,
+   "Neu5Gc": 1
+  }
+ },
+ {
+  "no": 23,
+  "name": "FA4G1Sg1",
+  "type": "Complex",
+  "pct": 1.0,
+  "composition": {
+   "HexNAc": 6,
+   "Hex": 4,
+   "dHex": 1,
+   "Neu5Ac": 0,
+   "Neu5Gc": 1
+  }
+ },
+ {
+  "no": 24,
+  "name": "A1",
+  "type": "Hybrid",
+  "pct": 1.0,
+  "composition": {
+   "HexNAc": 3,
+   "Hex": 3,
+   "dHex": 0,
+   "Neu5Ac": 0,
+   "Neu5Gc": 0
+  }
+ },
+ {
+  "no": 25,
+  "name": "FA2BG2",
+  "type": "Complex",
+  "pct": 1.0,
+  "composition": {
+   "HexNAc": 5,
+   "Hex": 5,
+   "dHex": 1,
+   "Neu5Ac": 0,
+   "Neu5Gc": 0
+  }
+ },
+ {
+  "no": 26,
+  "name": "A2",
+  "type": "Complex",
+  "pct": 0.9,
+  "composition": {
+   "HexNAc": 4,
+   "Hex": 3,
+   "dHex": 0,
+   "Neu5Ac": 0,
+   "Neu5Gc": 0
+  }
+ },
+ {
+  "no": 27,
+  "name": "FA2G1F1",
+  "type": "Complex",
+  "pct": 0.9,
+  "composition": {
+   "HexNAc": 4,
+   "Hex": 4,
+   "dHex": 2,
+   "Neu5Ac": 0,
+   "Neu5Gc": 0
+  }
+ },
+ {
+  "no": 28,
+  "name": "FA4G1",
+  "type": "Complex",
+  "pct": 0.9,
+  "composition": {
+   "HexNAc": 6,
+   "Hex": 4,
+   "dHex": 1,
+   "Neu5Ac": 0,
+   "Neu5Gc": 0
+  }
+ },
+ {
+  "no": 29,
+  "name": "FA3G2Sg2",
+  "type": "Complex",
+  "pct": 0.9,
+  "composition": {
+   "HexNAc": 5,
+   "Hex": 5,
+   "dHex": 1,
+   "Neu5Ac": 0,
+   "Neu5Gc": 2
+  }
+ },
+ {
+  "no": 30,
+  "name": "FA4G2Sg1",
+  "type": "Complex",
+  "pct": 0.8,
+  "composition": {
+   "HexNAc": 6,
+   "Hex": 5,
+   "dHex": 1,
+   "Neu5Ac": 0,
+   "Neu5Gc": 1
+  }
+ },
+ {
+  "no": 31,
+  "name": "FA2G3",
+  "type": "Complex",
+  "pct": 0.7,
+  "composition": {
+   "HexNAc": 4,
+   "Hex": 6,
+   "dHex": 1,
+   "Neu5Ac": 0,
+   "Neu5Gc": 0
+  }
+ },
+ {
+  "no": 32,
+  "name": "FM3",
+  "type": "High-Man",
+  "pct": 0.6,
+  "composition": {
+   "HexNAc": 2,
+   "Hex": 3,
+   "dHex": 1,
+   "Neu5Ac": 0,
+   "Neu5Gc": 0
+  }
+ }
+]

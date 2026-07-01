@@ -16,3 +16,6 @@ dist/
 
 # 테스트용 대용량 mzML(미커밋)
 tests/data/sample.mzML
+
+# pancreatin 평가용 대용량 mzML(미커밋)
+tests/data/pancreatin.mzML
