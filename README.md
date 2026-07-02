@@ -210,4 +210,4 @@ tests/                 # 회귀 가드레일(질량/정량/명명/설정)
 ## 인용 / 라이선스
 - 방법론 인용: Moon et al., *Enzyme and Microbial Technology* 196 (2026) 110830.
 - 번들: [ThermoRawFileParser](https://github.com/compomics/ThermoRawFileParser) (자체 라이선스).
-- 라이선스: (예정 — MIT 권장)
+- 라이선스: [MIT](LICENSE)
