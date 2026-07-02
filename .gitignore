@@ -19,3 +19,7 @@ tests/data/sample.mzML
 
 # pancreatin 평가용 대용량 mzML(미커밋)
 tests/data/pancreatin.mzML
+
+# 데이터/결과 폴더 (대용량 .raw 등 — 공개 금지)
+data/
+result/
