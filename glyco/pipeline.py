@@ -84,3 +84,36 @@ def analyze(input_path, *, config_path=None, output=None, work_dir=None,
             pass
 
     return results, out, cfg
+
+
+def screening(input_path, *, config_path=None, output=None, work_dir=None,
+              keep_mzml=False, anchor="HexNAc,ProA-HexNAc", ppm=None, log=print):
+    """
+    .raw 또는 .mzML 에서 MS2 진단이온 스크리닝 시트만 생성한다.
+
+    Xcalibur 에서 scan/RT/oxonium/precursor 값을 손으로 옮기던 작업을
+    대체하기 위한 빠른 경로다. .raw 입력은 MS2만 mzML 로 변환한다.
+    """
+    cfg = config_mod.load(config_path)
+    chem = Chemistry(cfg)
+
+    out = output or (os.path.splitext(input_path)[0] + "_screening.xlsx")
+    work = work_dir or os.path.join(os.path.dirname(os.path.abspath(input_path)), "_glycan_screening_work")
+
+    mzml_path = raw.to_mzml(input_path, work, ms_levels="2", log=log)
+    data = mzml_parse.parse(mzml_path, keep_ms2_peaks=True, keep_ms1=False, log=log)
+
+    screening_rows, screening_ions = identify.screening_table(
+        data, chem.diagnostic_table(), ppm=ppm or cfg.ms2_ppm, anchor=anchor)
+    log(f"[스크리닝] 글리칸 후보 MS2 스캔 {len(screening_rows)}개 추출")
+
+    meta = {"sample": os.path.basename(input_path), "source": cfg.name}
+    report.write_screening(screening_rows, screening_ions, out, meta=meta)
+
+    if not keep_mzml and mzml_path.startswith(work):
+        try:
+            os.remove(mzml_path); os.rmdir(work)
+        except OSError:
+            pass
+
+    return screening_rows, out, cfg

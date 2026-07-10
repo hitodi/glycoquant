@@ -92,6 +92,7 @@ macOS/Linux 는 `.NET`(dotnet) 런타임 필요, Windows 빌드는 self-containe
 ### 명령줄
 ```bash
 python glycan_analyze.py 시료.raw                       # 기본 분석
+python glycan_analyze.py 시료.raw --screening-only       # Xcalibur 스크리닝 전사만 생성
 python glycan_analyze.py 시료.raw -o 결과.xlsx --ms1-ppm 3
 python glycan_analyze.py 시료.raw --ms1-first            # 시알산 회수
 python glycan_analyze.py 시료.raw -c configs/2ab_nglycan.yaml
@@ -122,6 +123,8 @@ results, out_path, cfg = pipeline.analyze("시료.raw")
 | `--ms1-first` | MS1-first 모드(시알산 회수, opt-in) | 꺼짐 |
 | `--ms1-min-adducts` / `--ms1-first-ppm` / `--ms1-noise-factor` | MS1-first 세부 | 3 / 3 / 70 |
 | `--no-screening` | Screening 시트 생략 | (생성) |
+| `--screening-only` | 동정·정량 없이 Screening 엑셀만 생성 | 꺼짐 |
+| `--screening-anchor` / `--screening-ppm` | Screening 포함 기준 진단이온 / 허용오차 | HexNAc,ProA-HexNAc / ms2_ppm |
 | `--keep-mzml` | 변환 mzML 보존 | (삭제) |
 
 **상황별 3개만 기억**: 시알산 많은 시료 → `--ms1-first` / 오탐 많음 → `--ms1-ppm 3` / 다른 라벨 → `-c 설정.yaml`.

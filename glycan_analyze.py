@@ -41,12 +41,27 @@ def main(argv=None):
     p.add_argument("--min-intensity", type=float, help="이 값 미만 adduct 무시")
     p.add_argument("--no-screening", action="store_true",
                    help="스크리닝 시트(스캔별 진단이온/precursor) 생략")
+    p.add_argument("--screening-only", "--screen-only", action="store_true",
+                   help="동정·정량 없이 .raw/.mzML에서 Screening 엑셀만 생성")
+    p.add_argument("--screening-anchor", default="HexNAc,ProA-HexNAc",
+                   help="Screening에 포함할 anchor 진단이온 이름들(쉼표 구분, 기본: HexNAc,ProA-HexNAc; 빈 문자열이면 전체 MS2)")
+    p.add_argument("--screening-ppm", type=float,
+                   help="Screening 진단이온 m/z 허용오차 ppm(기본: 설정 ms2_ppm)")
     p.add_argument("--keep-mzml", action="store_true", help="변환 mzML 보존")
     args = p.parse_args(argv)
 
     if not os.path.isfile(args.input):
         print(f"[오류] 입력 파일이 없습니다: {args.input}")
         return 2
+
+    if args.screening_only:
+        t0 = time.time()
+        anchor = args.screening_anchor if args.screening_anchor else None
+        rows, out, cfg = pipeline.screening(
+            args.input, config_path=args.config, output=args.output,
+            keep_mzml=args.keep_mzml, anchor=anchor, ppm=args.screening_ppm)
+        print(f"\n[완료] 설정='{cfg.name}'  Screening 스캔 {len(rows)}개 -> {out}  ({time.time()-t0:.1f}s)")
+        return 0
 
     overrides = {}
     if args.precursor_ppm is not None: overrides["precursor_ppm"] = args.precursor_ppm

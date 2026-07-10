@@ -62,10 +62,15 @@ def screening_table(msdata, diag_table, ppm=20.0, anchor="HexNAc"):
     Xcalibur 수작업 '스크리닝 시트' 재현.
     각 MS2 스캔에서 진단이온(oxonium)들의 관측 m/z + precursor/charge/RT 를 뽑는다.
     anchor 이온(기본 HexNAc 204)이 보이는 스캔(=글리칸 후보)만 반환.
+    anchor 는 문자열 또는 문자열 리스트이며, 리스트면 하나라도 보이는 스캔을 반환한다.
     반환: (rows, ion_names)  — rows[i] = dict(scan, rt, precursor, charge, ions={name:obs_mz})
     """
     import numpy as np
     ion_names = [n for n, _ in diag_table]
+    if isinstance(anchor, str):
+        anchors = [x.strip() for x in anchor.split(",") if x.strip()]
+    else:
+        anchors = list(anchor or [])
     rows = []
     for rt, pmz, z, scan in msdata.ms2:
         pk = msdata.ms2_peaks.get(scan)
@@ -81,9 +86,18 @@ def screening_table(msdata, diag_table, ppm=20.0, anchor="HexNAc"):
                     if best is None or abs(mz[j] - target) < abs(best - target):
                         best = float(mz[j])
             ions[name] = best
-        if anchor and ions.get(anchor) is None:
+        if anchors and not any(ions.get(a) is not None for a in anchors):
             continue
-        rows.append({"scan": scan, "rt": rt, "precursor": pmz, "charge": z, "ions": ions})
+        info = getattr(msdata, "ms2_info", {}).get(scan, {})
+        rows.append({
+            "scan": scan,
+            "rt": rt,
+            "precursor": pmz,
+            "isolation_target": info.get("isolation_target_mz"),
+            "monoisotope": info.get("selected_mz", pmz),
+            "charge": z,
+            "ions": ions,
+        })
     rows.sort(key=lambda r: r["rt"])
     return rows, ion_names
 
