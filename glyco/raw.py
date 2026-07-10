@@ -47,7 +47,7 @@ def _have_dotnet():
     return shutil.which("dotnet") is not None
 
 
-def convert(raw_path: str, out_dir: str, indexed: bool = True, log=print) -> str:
+def convert(raw_path: str, out_dir: str, indexed: bool = True, ms_levels=None, log=print) -> str:
     """
     raw_path -> mzML. 변환된 mzML 경로를 반환.
     """
@@ -79,6 +79,8 @@ def convert(raw_path: str, out_dir: str, indexed: bool = True, log=print) -> str
             )
         cmd = ["dotnet", target]
     cmd += ["-i", raw_path, "-b", out_mzml, "-f", fmt, "-l", "3"]
+    if ms_levels:
+        cmd += ["-L", str(ms_levels)]
 
     log(f"[변환] {os.path.basename(raw_path)} -> mzML ...")
     proc = subprocess.run(cmd, capture_output=True, text=True)
@@ -90,11 +92,11 @@ def convert(raw_path: str, out_dir: str, indexed: bool = True, log=print) -> str
     return out_mzml
 
 
-def to_mzml(path: str, out_dir: str, log=print) -> str:
+def to_mzml(path: str, out_dir: str, ms_levels=None, log=print) -> str:
     """입력이 .raw 면 변환하고, 이미 .mzML 이면 그대로 사용."""
     ext = os.path.splitext(path)[1].lower()
     if ext == ".mzml":
         return os.path.abspath(path)
     if ext == ".raw":
-        return convert(path, out_dir, log=log)
+        return convert(path, out_dir, ms_levels=ms_levels, log=log)
     raise ValueError(f"지원하지 않는 입력 형식입니다: {ext} (.raw 또는 .mzML)")
