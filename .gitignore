@@ -23,3 +23,6 @@ tests/data/pancreatin.mzML
 # 데이터/결과 폴더 (대용량 .raw 등 — 공개 금지)
 data/
 result/
+
+# 실행 결과물 폴더
+outputs/
