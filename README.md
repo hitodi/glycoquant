@@ -97,7 +97,7 @@ python glycan_analyze.py 시료.raw -o 결과.xlsx --ms1-ppm 3
 python glycan_analyze.py 시료.raw --ms1-first            # 시알산 회수
 python glycan_analyze.py 시료.raw -c configs/2ab_nglycan.yaml
 ```
-
+202
 ### 파이썬에서
 ```python
 from glyco import pipeline
@@ -123,6 +123,7 @@ results, out_path, cfg = pipeline.analyze("시료.raw")
 | `--ms1-first` | MS1-first 모드(시알산 회수, opt-in) | 꺼짐 |
 | `--ms1-min-adducts` / `--ms1-first-ppm` / `--ms1-noise-factor` | MS1-first 세부 | 3 / 3 / 70 |
 | `--no-screening` | Screening 시트 생략 | (생성) |
+| `--screening-all` | 스크리닝을 필터 없이 **전체 MS2 스캔** 덤프(204 없는 것도 전부) | (204+ 만) |
 | `--screening-only` | 동정·정량 없이 Screening 엑셀만 생성 | 꺼짐 |
 | `--screening-anchor` / `--screening-ppm` | Screening 포함 기준 진단이온 / 허용오차 | HexNAc,ProA-HexNAc / ms2_ppm |
 | `--keep-mzml` | 변환 mzML 보존 | (삭제) |

@@ -70,8 +70,12 @@ def analyze(input_path, *, config_path=None, output=None, work_dir=None,
     # 5) 스크리닝 시트(Xcalibur 수작업 대체) + 리포트
     screening = screening_ions = None
     if want_screening and data.ms2_peaks:
-        screening, screening_ions = identify.screening_table(data, chem.diagnostic_table())
-        log(f"[스크리닝] 글리칸 스캔 {len(screening)}개 표로 추출")
+        # screening_all=True 면 필터 없이 모든 MS2 스캔을 그대로 덤프
+        anchor = None if overrides.get("screening_all") else "HexNAc"
+        screening, screening_ions = identify.screening_table(
+            data, chem.diagnostic_table(), anchor=anchor)
+        kind = "전체 MS2" if anchor is None else "글리칸(204+)"
+        log(f"[스크리닝] {kind} 스캔 {len(screening)}개 표로 추출")
     if results:
         meta = {"sample": os.path.basename(input_path), "source": cfg.name}
         report.write(results, out, meta=meta, screening=screening, screening_ions=screening_ions)

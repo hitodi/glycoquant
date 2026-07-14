@@ -41,6 +41,8 @@ def main(argv=None):
     p.add_argument("--min-intensity", type=float, help="이 값 미만 adduct 무시")
     p.add_argument("--no-screening", action="store_true",
                    help="스크리닝 시트(스캔별 진단이온/precursor) 생략")
+    p.add_argument("--screening-all", action="store_true",
+                   help="스크리닝을 필터 없이 전체 MS2 스캔으로(204 없는 스캔도 전부 덤프)")
     p.add_argument("--screening-only", "--screen-only", action="store_true",
                    help="동정·정량 없이 .raw/.mzML에서 Screening 엑셀만 생성")
     p.add_argument("--screening-anchor", default="HexNAc,ProA-HexNAc",
@@ -56,7 +58,7 @@ def main(argv=None):
 
     if args.screening_only:
         t0 = time.time()
-        anchor = args.screening_anchor if args.screening_anchor else None
+        anchor = None if args.screening_all else (args.screening_anchor or None)
         rows, out, cfg = pipeline.screening(
             args.input, config_path=args.config, output=args.output,
             keep_mzml=args.keep_mzml, anchor=anchor, ppm=args.screening_ppm)
@@ -77,6 +79,7 @@ def main(argv=None):
     if args.ms1_noise_factor is not None: overrides["ms1_noise_factor"] = args.ms1_noise_factor
     if args.no_ms2: overrides["require_ms2"] = False
     if args.no_screening: overrides["no_screening"] = True
+    if args.screening_all: overrides["screening_all"] = True
     if args.no_diagnostic: overrides["no_diagnostic"] = True
     if args.min_intensity is not None: overrides["min_intensity"] = args.min_intensity
 
