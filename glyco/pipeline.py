@@ -5,11 +5,59 @@
 CLI/GUI/노트북 어디서든 이 run() 하나만 호출하면 된다.
 """
 
+import glob
 import os
 
 from . import config as config_mod
-from . import raw, mzml_parse, compositions, identify, report
+from . import raw, mzml_parse, compositions, identify, report, aggregate
 from .chem import Chemistry
+
+
+def find_inputs(directory):
+    """디렉토리에서 .raw / .mzML 입력을 찾아 정렬 반환(재귀 X)."""
+    fs = []
+    for ext in ("*.raw", "*.mzML", "*.mzml"):
+        fs += glob.glob(os.path.join(directory, ext))
+    return sorted(set(fs))
+
+
+def batch(input_dir, *, config_path=None, output_dir=None, overrides=None,
+          keep_mzml=False, log=print):
+    """
+    디렉토리의 여러 .raw/.mzML 을 각각 분석(개별 엑셀)하고, 반복으로 취합한다.
+    반환: (per_file[(label,results)], agg, agg_path)
+    """
+    files = find_inputs(input_dir)
+    if not files:
+        raise FileNotFoundError(f"{input_dir} 에 .raw/.mzML 이 없습니다.")
+    out_dir = output_dir or os.path.join(os.path.abspath(input_dir), "glycoquant_results")
+    os.makedirs(out_dir, exist_ok=True)
+
+    per_file = []
+    failed = []
+    for i, f in enumerate(files, 1):
+        label = os.path.splitext(os.path.basename(f))[0]
+        log(f"\n===== [{i}/{len(files)}] {label} =====")
+        per_out = os.path.join(out_dir, label + "_glycans.xlsx")
+        try:
+            results, _, cfg = analyze(f, config_path=config_path, output=per_out,
+                                      keep_mzml=keep_mzml, overrides=overrides, log=log)
+            per_file.append((label, results or []))
+        except Exception as e:   # 파일 하나 실패해도 나머지는 계속
+            failed.append((label, str(e)))
+            log(f"[경고] '{label}' 처리 실패 — 건너뜀: {e}")
+
+    if not per_file:
+        raise RuntimeError("모든 파일 처리 실패: " + "; ".join(f"{n}({e})" for n, e in failed))
+    if failed:
+        log(f"[주의] {len(failed)}개 파일 실패(취합서 제외): " + ", ".join(n for n, _ in failed))
+
+    log(f"\n===== 반복 취합 (n={len(per_file)}) =====")
+    agg = aggregate.aggregate(per_file)
+    agg_path = os.path.join(out_dir, "aggregated.xlsx")
+    report.write_aggregated(agg, agg_path, meta={"group": os.path.basename(os.path.abspath(input_dir))})
+    log(f"[취합] 글리칸 {len(agg['glycans'])}종 -> {agg_path}")
+    return per_file, agg, agg_path
 
 
 def analyze(input_path, *, config_path=None, output=None, work_dir=None,

@@ -52,11 +52,11 @@ def main(argv=None):
     p.add_argument("--keep-mzml", action="store_true", help="변환 mzML 보존")
     args = p.parse_args(argv)
 
-    if not os.path.isfile(args.input):
-        print(f"[오류] 입력 파일이 없습니다: {args.input}")
+    if not os.path.exists(args.input):
+        print(f"[오류] 입력이 없습니다: {args.input}")
         return 2
 
-    if args.screening_only:
+    if args.screening_only and not os.path.isdir(args.input):
         t0 = time.time()
         anchor = None if args.screening_all else (args.screening_anchor or None)
         rows, out, cfg = pipeline.screening(
@@ -82,6 +82,19 @@ def main(argv=None):
     if args.screening_all: overrides["screening_all"] = True
     if args.no_diagnostic: overrides["no_diagnostic"] = True
     if args.min_intensity is not None: overrides["min_intensity"] = args.min_intensity
+
+    # 디렉토리 입력 -> 배치(개별 결과 + 반복 취합)
+    if os.path.isdir(args.input):
+        t0 = time.time()
+        per_file, agg, agg_path = pipeline.batch(
+            args.input, config_path=args.config, output_dir=args.output,
+            keep_mzml=args.keep_mzml, overrides=overrides)
+        print(f"\n[완료] {len(per_file)}개 파일 개별분석 + 취합 -> {os.path.dirname(agg_path)}  ({time.time()-t0:.1f}s)")
+        print(f"  개별: 각 파일_glycans.xlsx / 취합: {os.path.basename(agg_path)}")
+        print(f"\n취합 상위 5개 (평균±SD, 검출 n/N):")
+        for g in agg["glycans"][:5]:
+            print(f"  {g['oxford']:12s} {g['type']:12s} {g['mean']:5.2f}±{g['sd']:.2f}%  ({g['n_detected']}/{g['n_total']})")
+        return 0
 
     t0 = time.time()
     results, out, cfg = pipeline.analyze(

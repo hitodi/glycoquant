@@ -80,6 +80,72 @@ def write_screening(screening, screening_ions, out_path, meta=None):
     return out_path
 
 
+def write_aggregated(agg, out_path, meta=None):
+    """
+    반복 취합 결과를 workbook 으로 저장한다.
+      - Aggregated : 글리칸 × [평균/SD/CV/검출빈도 + 반복별 %]
+      - Type summary : 유형별 평균±SD (반복별 %)
+    """
+    files = agg["files"]
+    wb = Workbook()
+
+    # ---------- Aggregated ----------
+    ws = wb.active
+    ws.title = "Aggregated"
+    ws.append([f"반복 취합 결과 (n={len(files)})"])
+    ws["A1"].font = TITLE_FONT
+    if meta:
+        ws.append([f"그룹: {meta.get('group', '')}   |   파일: {', '.join(files)}"])
+        ws["A2"].font = Font(name=FONT, italic=True, color="666666")
+    hr = ws.max_row + 1
+    base = ["No.", "Oxford", "Composition", "Type", "Evidence",
+            "Mean %", "SD", "CV %", "n/N (검출)"]
+    headers = base + [f"{f}\n%" for f in files]
+    ws.append(headers)
+    _style_header(ws, hr, len(headers))
+
+    from .compositions import composition_name
+    _r = lambda v, n: (round(v, n) if v is not None else "-")
+    for i, g in enumerate(agg["glycans"]):
+        row = [
+            i + 1, g["oxford"], composition_name(g["composition"]), g["type"], g["evidence"],
+            round(g["mean"], 2), _r(g["sd"], 2), _r(g["cv"], 1),
+            f"{g['n_detected']}/{g['n_total']}",
+        ]
+        for f in files:
+            v = g["pct_by_file"].get(f)
+            row.append(round(v, 2) if v is not None else None)
+        ws.append(row)
+    last = ws.max_row
+    for rr in range(hr + 1, last + 1):
+        for cc in range(1, len(headers) + 1):
+            ws.cell(rr, cc).font = Font(name=FONT)
+            ws.cell(rr, cc).border = BORDER
+    _autofit(ws, [5, 12, 26, 13, 11, 9, 8, 8, 11] + [11] * len(files))
+    ws.freeze_panes = ws.cell(hr + 1, 1)
+
+    # ---------- Type summary ----------
+    ts = wb.create_sheet("Type summary")
+    ts.append(["유형별 취합 (평균 ± SD, %)"])
+    ts["A1"].font = TITLE_FONT
+    th = ["Type", "Mean %", "SD"] + [f"{f} %" for f in files]
+    ts.append(th)
+    _style_header(ts, 2, len(th))
+    for t in ("High-mannose", "Hybrid", "Complex"):
+        d = agg["types"][t]
+        sd = round(d["sd"], 1) if d["sd"] is not None else "-"
+        row = [t, round(d["mean"], 1), sd] + [round(d["by_file"][f], 1) for f in files]
+        ts.append(row)
+    for rr in range(3, ts.max_row + 1):
+        for cc in range(1, len(th) + 1):
+            ts.cell(rr, cc).font = Font(name=FONT)
+            ts.cell(rr, cc).border = BORDER
+    _autofit(ts, [14, 9, 8] + [11] * len(files))
+
+    wb.save(out_path)
+    return out_path
+
+
 def write(results, out_path, meta=None, screening=None, screening_ions=None):
     wb = Workbook()
 

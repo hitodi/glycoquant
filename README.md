@@ -91,7 +91,8 @@ macOS/Linux 는 `.NET`(dotnet) 런타임 필요, Windows 빌드는 self-containe
 
 ### 명령줄
 ```bash
-python glycan_analyze.py 시료.raw                       # 기본 분석(4시트 + Screening 포함)
+python glycan_analyze.py 시료.raw                       # 파일 1개 분석(4시트 + Screening)
+python glycan_analyze.py 반복폴더/                        # 폴더의 .raw 여러개 → 개별 + 반복취합
 python glycan_analyze.py 시료.raw --screening-only       # Xcalibur 스크리닝 전사만 빠르게
 python glycan_analyze.py 시료.raw --screening-only --screening-all   # 전체 MS2 스캔 통째로
 python glycan_analyze.py 시료.raw -o 결과.xlsx --ms1-ppm 3
@@ -99,10 +100,29 @@ python glycan_analyze.py 시료.raw --ms1-first            # 시알산 회수
 python glycan_analyze.py 시료.raw -c configs/2ab_nglycan.yaml
 ```
 202
+### 폴더(반복) 배치 — 개별 + 취합
+입력에 **파일 대신 디렉토리**를 주면, 그 안의 `.raw`/`.mzML` 전부를 각각 분석하고
+**반복으로 취합**한다(논문 Table 1 의 `평균 ± SD` 형태).
+```bash
+python glycan_analyze.py 반복폴더/ -o 결과폴더/
+```
+- **개별 결과**: `결과폴더/<파일명>_glycans.xlsx` (파일마다)
+- **취합 결과**: `결과폴더/aggregated.xlsx`
+  - `Aggregated` 시트: 글리칸 × [평균% · SD · CV% · 검출빈도(n/N) · 반복별 %]
+  - `Type summary` 시트: 유형별 평균 ± SD
+- **결측 처리(재현성 관점)**: 어떤 반복에서 안 잡힌 글리칸은 그 반복 0%로 간주 →
+  산발 검출(예 1/3)은 **SD 가 커져 자동으로 신뢰도 낮게 드러남**(false precision 방지).
+  `Evidence` 열로 MS2/MS1 근거도 표시.
+- 파일 하나가 실패해도 나머지는 계속 처리(실패 목록 보고).
+
+> ⚠️ 지금은 **한 폴더 = 한 반복그룹**(같은 시료의 반복). 논문 Table 1 의 *시료×반복*
+> (PPE×3, PPL×3…) 나란히 비교는 아직 별도 단계 — 시료별로 폴더를 나눠 돌리면 됨.
+
 ### 파이썬에서
 ```python
 from glyco import pipeline
-results, out_path, cfg = pipeline.analyze("시료.raw")
+results, out, cfg = pipeline.analyze("시료.raw")        # 파일 1개
+per_file, agg, agg_path = pipeline.batch("반복폴더/")     # 폴더 배치
 ```
 
 ### 옵션 전체
