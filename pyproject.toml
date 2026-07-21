@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "glycoquant"
-version = "0.3.0"
+version = "0.4.0"
 description = "라벨 글리칸(.raw) 자동 동정·정량 도구 (LC-ESI-HCD-MS/MS)"
 requires-python = ">=3.9"
 dependencies = [

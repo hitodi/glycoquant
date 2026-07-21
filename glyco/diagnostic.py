@@ -9,6 +9,22 @@ MS2 단편 스펙트럼에 글리칸 공통 진단이온(예: 204.0867 HexNAc, 4
 import numpy as np
 
 
+def nearest_within_ppm(sorted_mz, target, ppm_tol=20.0):
+    """
+    정렬된 m/z 배열에서 target 에 ppm 내로 가장 가까운 피크의 실측 m/z 반환(없으면 None).
+    ⭐ 스크리닝·타깃 매칭이 공유하는 단일 정의(동일 결과 보장).
+    """
+    if sorted_mz is None or len(sorted_mz) == 0:
+        return None
+    i = np.searchsorted(sorted_mz, target)
+    best = None
+    for j in (i, i - 1):
+        if 0 <= j < sorted_mz.size and abs(sorted_mz[j] - target) / target * 1e6 <= ppm_tol:
+            if best is None or abs(sorted_mz[j] - target) < abs(best - target):
+                best = float(sorted_mz[j])
+    return best
+
+
 def present_ions(peaks_mz, diag_table, ppm_tol=20.0, min_rel_intensity=0.0, intensities=None):
     """
     peaks_mz : MS2 단편 m/z 배열(정렬 가정 X)

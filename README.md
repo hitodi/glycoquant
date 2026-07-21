@@ -102,6 +102,30 @@ python glycan_analyze.py 시료.raw --ms1-first            # 시알산 회수
 python glycan_analyze.py 시료.raw -c configs/2ab_nglycan.yaml
 ```
 202
+### 타깃 스크리닝 — 직접 정한 진단이온으로 (`--targets`)
+사용자가 **직접 계산한 글리칸별 진단이온 이론 m/z**를 넣어, 그 이온이 ±ppm으로
+보이는 MS2 스캔만 뽑는다. 글리칸당 N개 이온 중 **K개 이상 매칭 시 채택**.
+```bash
+python glycan_analyze.py 시료.raw --targets targets.yaml
+```
+```yaml
+# targets.yaml
+ppm: 20            # 이온 매칭 허용오차
+min_hits: 2        # K (N개 중 K개 이상이면 채택)
+precursor_floor: 0.1
+glycans:
+  - name: GlycanA
+    ions: [204.0867, 366.1395, 528.19]   # 직접 계산한 이론 m/z (N개)
+  - name: GlycanB
+    ions: [292.1027, 657.2349, 946.34]
+```
+- 출력 `시료_targeted.xlsx` 3시트:
+  - **Matched (≥K)**: 채택 (scan×glycan)
+  - **Holding (부분매칭)**: 1~K−1 매칭(보류·검토용, 버려도 됨)
+  - **Precursor groups**: Matched 를 **precursor floor(0.1) 단위로 묶어** 나열(표시는 전체값)
+- CSV 도 가능(`name,ion1,ion2,...` 행). 옵션 override: `--min-hits`, `--targets-ppm`, `--precursor-floor`.
+- ⚠️ 한 스캔이 여러 글리칸에 각각 매칭될 수 있음(진단이온 공유) — 의도된 스크리닝 뷰(글리칸별 판정).
+
 ### 폴더(반복) 배치 — 개별 + 취합
 입력에 **파일 대신 디렉토리**를 주면, 그 안의 `.raw`/`.mzML` 전부를 각각 분석하고
 **반복으로 취합**한다(논문 Table 1 의 `평균 ± SD` 형태).

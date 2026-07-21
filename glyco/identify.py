@@ -77,15 +77,7 @@ def screening_table(msdata, diag_table, ppm=20.0, anchor="HexNAc"):
         if pk is None:
             continue
         mz = np.sort(pk[0])
-        ions = {}
-        for name, target in diag_table:
-            i = np.searchsorted(mz, target)
-            best = None
-            for j in (i, i - 1):
-                if 0 <= j < mz.size and abs(mz[j] - target) / target * 1e6 <= ppm:
-                    if best is None or abs(mz[j] - target) < abs(best - target):
-                        best = float(mz[j])
-            ions[name] = best
+        ions = {name: diagnostic.nearest_within_ppm(mz, target, ppm) for name, target in diag_table}
         if anchors and not any(ions.get(a) is not None for a in anchors):
             continue
         info = getattr(msdata, "ms2_info", {}).get(scan, {})
@@ -100,6 +92,45 @@ def screening_table(msdata, diag_table, ppm=20.0, anchor="HexNAc"):
         })
     rows.sort(key=lambda r: r["rt"])
     return rows, ion_names
+
+
+def floor_bin(x, step=0.1):
+    """x 를 step 단위로 버림(floor)한 그룹 키. 부동소수 표현오차 방지용 반올림 경유."""
+    import math
+    return math.floor(round(x / step, 6)) * step
+
+
+def targeted_screen(msdata, glycans, ppm=20.0, min_hits=2):
+    """
+    사용자 지정 글리칸별 진단이온 목록으로 MS2 스캔을 타깃 스크리닝.
+    glycans : [{"name": str, "ions": [theoretical m/z, ...]}, ...]
+    각 (scan, glycan) 쌍마다 매칭 이온 수를 세어 티어 분류:
+      hits >= min_hits → 'matched' / 1 <= hits < min_hits → 'holding' / 0 → 제외.
+    ⭐ 같은 스캔이 여러 글리칸에 각각 매칭될 수 있음(per-pair 판정, 의도됨).
+    반환: rows = [{scan, rt, precursor, charge, glycan, n_ions, n_hit, tier,
+                   ion_obs={theoretical: observed|None}}]
+    """
+    import numpy as np
+    rows = []
+    for rt, pmz, z, scan in msdata.ms2:
+        pk = msdata.ms2_peaks.get(scan)
+        if pk is None:
+            continue
+        mz = np.sort(pk[0])
+        for g in glycans:
+            ions = g["ions"]
+            obs = {t: diagnostic.nearest_within_ppm(mz, t, ppm) for t in ions}
+            n_hit = sum(1 for v in obs.values() if v is not None)
+            if n_hit == 0:
+                continue
+            tier = "matched" if n_hit >= min_hits else "holding"
+            rows.append({
+                "scan": scan, "rt": rt, "precursor": pmz, "charge": z,
+                "glycan": g["name"], "n_ions": len(ions), "n_hit": n_hit,
+                "tier": tier, "ion_obs": obs,
+            })
+    rows.sort(key=lambda r: (r["glycan"], r["rt"]))
+    return rows
 
 
 def run(candidates, *, msdata, max_charge=3, ppm_tol=10.0,

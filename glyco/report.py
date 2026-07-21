@@ -80,6 +80,69 @@ def write_screening(screening, screening_ions, out_path, meta=None):
     return out_path
 
 
+def write_targeted(rows, spec, out_path, meta=None):
+    """
+    타깃 스크리닝 결과 workbook.
+      - Matched (≥K) : 채택된 (scan,glycan) 쌍
+      - Holding (1..K-1) : 보류(부분매칭)
+      - Precursor groups : Matched 스캔을 precursor floor(step) 로 묶어 나열
+    """
+    from .identify import floor_bin
+    step = spec.precursor_floor
+    matched = [r for r in rows if r["tier"] == "matched"]
+    holding = [r for r in rows if r["tier"] == "holding"]
+    wb = Workbook()
+    wb.remove(wb.active)
+
+    def _sheet(title, data):
+        ws = wb.create_sheet(title)
+        ws.append([title])
+        ws["A1"].font = TITLE_FONT
+        hdr = ["Glycan", "Scan No", "RT (min)", "Hits (n/N)", "Precursor m/z", "Charge", "Matched ions (obs m/z)"]
+        ws.append(hdr)
+        _style_header(ws, 2, len(hdr))
+        for r in data:
+            hit_ions = "; ".join(f"{t:.4f}→{o:.4f}" for t, o in r["ion_obs"].items() if o is not None)
+            ws.append([r["glycan"],
+                       int(r["scan"]) if str(r["scan"]).isdigit() else r["scan"],
+                       round(r["rt"], 2), f"{r['n_hit']}/{r['n_ions']}",
+                       round(r["precursor"], 4), r["charge"] if r["charge"] else "?", hit_ions])
+        for rr in range(3, ws.max_row + 1):
+            for cc in range(1, len(hdr) + 1):
+                ws.cell(rr, cc).font = Font(name=FONT); ws.cell(rr, cc).border = BORDER
+        _autofit(ws, [16, 9, 9, 10, 14, 7, 46])
+        ws.freeze_panes = "A3"
+        return ws
+
+    _sheet(f"Matched (≥{spec.min_hits})", matched)
+    _sheet("Holding (부분매칭)", holding)
+
+    # Precursor groups — Matched 스캔을 floor(step) 로 묶음(표시는 전체값)
+    pg = wb.create_sheet("Precursor groups")
+    pg.append([f"Matched precursor 그룹 (floor {step} 단위)"])
+    pg["A1"].font = TITLE_FONT
+    hdr = ["Group (floor)", "Precursor m/z", "Glycan", "Scan No", "RT (min)", "Charge"]
+    pg.append(hdr)
+    _style_header(pg, 2, len(hdr))
+    from collections import defaultdict
+    groups = defaultdict(list)
+    for r in matched:
+        groups[floor_bin(r["precursor"], step)].append(r)
+    for key in sorted(groups):
+        for r in sorted(groups[key], key=lambda x: x["precursor"]):
+            pg.append([round(key, 4), round(r["precursor"], 4), r["glycan"],
+                       int(r["scan"]) if str(r["scan"]).isdigit() else r["scan"],
+                       round(r["rt"], 2), r["charge"] if r["charge"] else "?"])
+    for rr in range(3, pg.max_row + 1):
+        for cc in range(1, len(hdr) + 1):
+            pg.cell(rr, cc).font = Font(name=FONT); pg.cell(rr, cc).border = BORDER
+    _autofit(pg, [14, 14, 16, 9, 9, 7])
+    pg.freeze_panes = "A3"
+
+    wb.save(out_path)
+    return out_path
+
+
 def write_aggregated(agg, out_path, meta=None):
     """
     반복 취합 결과를 workbook 으로 저장한다.

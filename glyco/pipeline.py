@@ -9,8 +9,41 @@ import glob
 import os
 
 from . import config as config_mod
-from . import raw, mzml_parse, compositions, identify, report, aggregate
+from . import raw, mzml_parse, compositions, identify, report, aggregate, targets as targets_mod
 from .chem import Chemistry
+
+
+def targeted_screening(input_path, targets_file, *, config_path=None, output=None,
+                       work_dir=None, keep_mzml=False, overrides=None, log=print):
+    """
+    사용자 지정 진단이온 목록(targets_file)으로 MS2 타깃 스크리닝.
+    반환: (rows, out_path, spec)
+    """
+    overrides = overrides or {}
+    spec = targets_mod.load(targets_file)
+    if "ppm" in overrides: spec.ppm = overrides["ppm"]
+    if "min_hits" in overrides: spec.min_hits = overrides["min_hits"]
+    if "precursor_floor" in overrides: spec.precursor_floor = overrides["precursor_floor"]
+    targets_mod._validate(spec)
+    log(targets_mod.summary(spec))
+
+    out = output or (os.path.splitext(input_path)[0] + "_targeted.xlsx")
+    work = work_dir or os.path.join(os.path.dirname(os.path.abspath(input_path)), "_glycan_targeted_work")
+    mzml_path = raw.to_mzml(input_path, work, ms_levels="2", log=log)
+    data = mzml_parse.parse(mzml_path, keep_ms2_peaks=True, keep_ms1=False, log=log)
+
+    rows = identify.targeted_screen(data, spec.glycans, ppm=spec.ppm, min_hits=spec.min_hits)
+    nm = sum(1 for r in rows if r["tier"] == "matched")
+    nh = sum(1 for r in rows if r["tier"] == "holding")
+    log(f"[타깃] 매칭(≥{spec.min_hits}) {nm} | 보류(부분) {nh} 쌍")
+
+    report.write_targeted(rows, spec, out, meta={"sample": os.path.basename(input_path)})
+    if not keep_mzml and mzml_path.startswith(work):
+        try:
+            os.remove(mzml_path); os.rmdir(work)
+        except OSError:
+            pass
+    return rows, out, spec
 
 
 def find_inputs(directory):
