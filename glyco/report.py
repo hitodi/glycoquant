@@ -94,6 +94,24 @@ def write_targeted(rows, spec, out_path, meta=None):
     wb = Workbook()
     wb.remove(wb.active)
 
+    # ---------- Glycan summary (0 포함 — 손입력 오류/누락 구분용) ----------
+    from collections import Counter
+    mc = Counter(r["glycan"] for r in matched)
+    hc = Counter(r["glycan"] for r in holding)
+    gs = wb.create_sheet("Glycan summary")
+    gs.append([f"글리칸별 매칭 요약 (K={spec.min_hits}, ppm={spec.ppm})"])
+    gs["A1"].font = TITLE_FONT
+    gs.append(["Glycan", "이온 N", "Matched", "Holding", "비고"])
+    _style_header(gs, 2, 5)
+    for g in spec.glycans:
+        m, h = mc.get(g["name"], 0), hc.get(g["name"], 0)
+        note = "⚠ 매칭 0 — 입력 m/z 확인" if m == 0 else ""
+        gs.append([g["name"], len(g["ions"]), m, h, note])
+    for rr in range(3, gs.max_row + 1):
+        for cc in range(1, 6):
+            gs.cell(rr, cc).font = Font(name=FONT); gs.cell(rr, cc).border = BORDER
+    _autofit(gs, [18, 8, 10, 10, 24])
+
     def _sheet(title, data):
         ws = wb.create_sheet(title)
         ws.append([title])

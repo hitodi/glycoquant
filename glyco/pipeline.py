@@ -36,6 +36,14 @@ def targeted_screening(input_path, targets_file, *, config_path=None, output=Non
     nm = sum(1 for r in rows if r["tier"] == "matched")
     nh = sum(1 for r in rows if r["tier"] == "holding")
     log(f"[타깃] 매칭(≥{spec.min_hits}) {nm} | 보류(부분) {nh} 쌍")
+    # 글리칸별 tally(0 포함) — 매칭 0이면 경고(입력 m/z 오류/누락 구분)
+    from collections import Counter
+    mc = Counter(r["glycan"] for r in rows if r["tier"] == "matched")
+    hc = Counter(r["glycan"] for r in rows if r["tier"] == "holding")
+    for g in spec.glycans:
+        m = mc.get(g["name"], 0)
+        warn = "  ⚠ 매칭 0 — 입력 m/z 확인" if m == 0 else ""
+        log(f"   - {g['name']}: matched {m}, holding {hc.get(g['name'], 0)}{warn}")
 
     report.write_targeted(rows, spec, out, meta={"sample": os.path.basename(input_path)})
     if not keep_mzml and mzml_path.startswith(work):
