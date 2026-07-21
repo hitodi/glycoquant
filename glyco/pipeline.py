@@ -16,36 +16,27 @@ from .chem import Chemistry
 def targeted_screening(input_path, targets_file, *, config_path=None, output=None,
                        work_dir=None, keep_mzml=False, overrides=None, log=print):
     """
-    사용자 지정 진단이온 목록(targets_file)으로 MS2 타깃 스크리닝.
+    진단규칙 파일(targets_file: required/any_of/features)로 MS2 스크리닝 → 스크리닝/구조찾기 시트.
     반환: (rows, out_path, spec)
     """
     overrides = overrides or {}
     spec = targets_mod.load(targets_file)
-    if "ppm" in overrides: spec.ppm = overrides["ppm"]
-    if "min_hits" in overrides: spec.min_hits = overrides["min_hits"]
-    if "precursor_floor" in overrides: spec.precursor_floor = overrides["precursor_floor"]
-    targets_mod._validate(spec)
+    if overrides.get("ppm"): spec.ppm = overrides["ppm"]
+    if overrides.get("group_ppm"): spec.group_ppm = overrides["group_ppm"]
     log(targets_mod.summary(spec))
 
-    out = output or (os.path.splitext(input_path)[0] + "_targeted.xlsx")
-    work = work_dir or os.path.join(os.path.dirname(os.path.abspath(input_path)), "_glycan_targeted_work")
+    out = output or (os.path.splitext(input_path)[0] + "_screening.xlsx")
+    work = work_dir or os.path.join(os.path.dirname(os.path.abspath(input_path)), "_glycan_screen_work")
     mzml_path = raw.to_mzml(input_path, work, ms_levels="2", log=log)
     data = mzml_parse.parse(mzml_path, keep_ms2_peaks=True, keep_ms1=False, log=log)
 
-    rows = identify.targeted_screen(data, spec.glycans, ppm=spec.ppm, min_hits=spec.min_hits)
-    nm = sum(1 for r in rows if r["tier"] == "matched")
-    nh = sum(1 for r in rows if r["tier"] == "holding")
-    log(f"[타깃] 매칭(≥{spec.min_hits}) {nm} | 보류(부분) {nh} 쌍")
-    # 글리칸별 tally(0 포함) — 매칭 0이면 경고(입력 m/z 오류/누락 구분)
+    rows = identify.screen_diagnostics(data, spec)
     from collections import Counter
-    mc = Counter(r["glycan"] for r in rows if r["tier"] == "matched")
-    hc = Counter(r["glycan"] for r in rows if r["tier"] == "holding")
-    for g in spec.glycans:
-        m = mc.get(g["name"], 0)
-        warn = "  ⚠ 매칭 0 — 입력 m/z 확인" if m == 0 else ""
-        log(f"   - {g['name']}: matched {m}, holding {hc.get(g['name'], 0)}{warn}")
+    fc = Counter(f for r in rows for f in r["features"])
+    log(f"[스크리닝] 채택 {len(rows)}스캔 | feature: " +
+        (", ".join(f"{k} {v}" for k, v in fc.items()) if fc else "없음"))
 
-    report.write_targeted(rows, spec, out, meta={"sample": os.path.basename(input_path)})
+    report.write_diagnostic_screening(rows, spec, out, meta={"sample": os.path.basename(input_path)})
     if not keep_mzml and mzml_path.startswith(work):
         try:
             os.remove(mzml_path); os.rmdir(work)

@@ -50,28 +50,25 @@ def main(argv=None):
     p.add_argument("--screening-ppm", type=float,
                    help="Screening 진단이온 m/z 허용오차 ppm(기본: 설정 ms2_ppm)")
     p.add_argument("--keep-mzml", action="store_true", help="변환 mzML 보존")
-    p.add_argument("--targets", help="사용자 지정 진단이온 목록(YAML/CSV) → 타깃 스크리닝 모드")
-    p.add_argument("--min-hits", type=int, help="타깃: 채택 임계 K (N개 중 K개 이상, 기본 2)")
-    p.add_argument("--targets-ppm", type=float, help="타깃: 이온 매칭 ppm(기본 파일값/20)")
-    p.add_argument("--precursor-floor", type=float, help="타깃: precursor 그룹 버림 단위(기본 0.1)")
+    p.add_argument("--targets", help="진단규칙 파일(YAML: required/any_of/features) → 진단 스크리닝 모드")
+    p.add_argument("--targets-ppm", type=float, help="진단: 이온 매칭 ppm(기본 파일값/5)")
+    p.add_argument("--group-ppm", type=float, help="진단: 구조찾기 precursor 그룹 ppm(기본 파일값/5)")
     args = p.parse_args(argv)
 
     if not os.path.exists(args.input):
         print(f"[오류] 입력이 없습니다: {args.input}")
         return 2
 
-    # 타깃 스크리닝 모드 (사용자 지정 진단이온)
+    # 진단 스크리닝 모드 (진단규칙 파일)
     if args.targets:
         t0 = time.time()
         ov = {}
-        if args.min_hits is not None: ov["min_hits"] = args.min_hits
         if args.targets_ppm is not None: ov["ppm"] = args.targets_ppm
-        if args.precursor_floor is not None: ov["precursor_floor"] = args.precursor_floor
+        if args.group_ppm is not None: ov["group_ppm"] = args.group_ppm
         rows, out, spec = pipeline.targeted_screening(
             args.input, args.targets, config_path=args.config, output=args.output,
             keep_mzml=args.keep_mzml, overrides=ov)
-        nm = sum(1 for r in rows if r["tier"] == "matched")
-        print(f"\n[완료] 타깃 스크리닝 매칭 {nm}쌍 -> {out}  ({time.time()-t0:.1f}s)")
+        print(f"\n[완료] 진단 스크리닝 채택 {len(rows)}스캔 -> {out}  ({time.time()-t0:.1f}s)")
         return 0
 
     if args.screening_only and not os.path.isdir(args.input):

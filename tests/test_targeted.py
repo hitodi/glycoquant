@@ -1,4 +1,4 @@
-"""타깃 스크리닝: floor 그룹핑 경계 + K-of-N 티어 + 타깃파일 검증 (mzML 불필요)."""
+"""진단 스크리닝: 채택규칙(441 필수+204/366) · feature OR · 그룹핑 · 규칙파일 검증 (mzML 불필요)."""
 import os
 import sys
 
@@ -7,68 +7,94 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np
 import pytest
 
-from glyco.identify import floor_bin, targeted_screen
-
-
-def test_floor_bin_boundary():
-    # 같은 0.1 구간은 한 그룹, 경계 넘으면 갈림
-    assert abs(floor_bin(557.70) - 557.7) < 1e-9
-    assert abs(floor_bin(557.74) - 557.7) < 1e-9
-    assert abs(floor_bin(557.79) - 557.7) < 1e-9
-    assert abs(floor_bin(557.69) - 557.6) < 1e-9
-    assert abs(floor_bin(557.80) - 557.8) < 1e-9
+from glyco.identify import screen_diagnostics, floor_bin
+from glyco.report import group_by_precursor
+from glyco import targets
 
 
 class _FakeMs:
-    def __init__(self, ms2, peaks):
-        self.ms2 = ms2                 # [(rt,pmz,z,scan)]
-        self.ms2_peaks = peaks         # {scan:(mz,inten)}
+    def __init__(self, ms2, peaks, info=None):
+        self.ms2 = ms2
+        self.ms2_peaks = peaks
+        self.ms2_info = info or {}
 
 
-def test_k_of_n_tiering():
-    glycans = [{"name": "G", "ions": [100.0, 200.0, 300.0]}]   # N=3
+def _spec():
+    return targets.DiagnosticSpec(
+        ions={"ProA-HexNAc": 441.2708, "HexNAc": 204.0867, "HexNAc+Hex": 366.1395},
+        accept=[{"any": ["ProA-HexNAc"], "min": 1},
+                {"any": ["HexNAc", "HexNAc+Hex"], "min": 1}],
+        features=[{"name": "Neu5Ac", "mz": [292.1027]},
+                  {"name": "bisecting", "mz": [1009.4823, 1155.5403]}],
+        ppm=5.0, group_ppm=5.0, split_by_charge=True)
+
+
+def test_accept_rule_441_required():
+    spec = _spec()
     peaks = {
-        "1": (np.array([100.0, 200.0]), np.array([9., 9.])),   # 2 hit → matched
-        "2": (np.array([100.0]), np.array([9.])),              # 1 hit → holding
-        "3": (np.array([999.0]), np.array([9.])),              # 0 hit → 제외
+        "A": (np.array([441.2708, 204.0867]), np.array([9., 9.])),   # 441+204 → 채택
+        "B": (np.array([441.2708, 366.1395]), np.array([9., 9.])),   # 441+366 → 채택
+        "C": (np.array([204.0867, 366.1395]), np.array([9., 9.])),   # 441 없음 → 버림
+        "D": (np.array([441.2708]), np.array([9.])),                 # 441만(204/366 없음) → 버림
     }
-    ms2 = [(10.0, 500.0, 2, "1"), (11.0, 501.0, 2, "2"), (12.0, 502.0, 2, "3")]
-    rows = targeted_screen(_FakeMs(ms2, peaks), glycans, ppm=20, min_hits=2)
-    by = {r["scan"]: r for r in rows}
-    assert by["1"]["tier"] == "matched" and by["1"]["n_hit"] == 2
-    assert by["2"]["tier"] == "holding" and by["2"]["n_hit"] == 1
-    assert "3" not in by                                       # 0 hit → 행 없음
+    ms2 = [(1., 500., 2, "A"), (2., 501., 2, "B"), (3., 502., 2, "C"), (4., 503., 2, "D")]
+    rows = screen_diagnostics(_FakeMs(ms2, peaks), spec)
+    got = {r["scan"] for r in rows}
+    assert got == {"A", "B"}          # 441 + (204 or 366) 만 채택
 
 
-def test_multi_glycan_per_pair_tier():
-    """한 스캔이 글리칸별로 다른 티어 가능(per-pair 판정)."""
-    glycans = [{"name": "A", "ions": [100.0, 200.0, 300.0]},
-               {"name": "B", "ions": [100.0, 700.0, 800.0]}]
-    peaks = {"1": (np.array([100.0, 200.0, 300.0]), np.array([9., 9., 9.]))}  # A=3, B=1
-    rows = targeted_screen(_FakeMs([(10.0, 500.0, 2, "1")], peaks), glycans, ppm=20, min_hits=2)
-    by = {r["glycan"]: r for r in rows}
-    assert by["A"]["tier"] == "matched"      # 3/3
-    assert by["B"]["tier"] == "holding"      # 1/3 (공유 이온 100만)
+def test_feature_annotation_or():
+    spec = _spec()
+    peaks = {"A": (np.array([441.2708, 204.0867, 292.1027, 1155.5403]), np.array([9.] * 4))}
+    rows = screen_diagnostics(_FakeMs([(1., 500., 2, "A")], peaks), spec)
+    feats = set(rows[0]["features"])
+    assert "Neu5Ac" in feats               # 292 검출
+    assert "bisecting" in feats            # 1155(OR) 검출
 
 
-def test_targets_validation(tmp_path):
-    from glyco import targets
-    good = tmp_path / "t.yaml"
-    good.write_text("min_hits: 2\nglycans:\n  - name: A\n    ions: [204.0867, 366.1395, 528.19]\n", encoding="utf-8")
+def test_monoisotope_from_info():
+    spec = _spec()
+    peaks = {"A": (np.array([441.2708, 204.0867]), np.array([9., 9.]))}
+    info = {"A": {"monoisotopic_mz": 765.3788}}
+    rows = screen_diagnostics(_FakeMs([(1., 766.38, 1, "A")], peaks, info), spec)
+    assert abs(rows[0]["monoisotope"] - 765.3788) < 1e-6   # userParam 사용
+    # info 없으면 precursor 폴백
+    rows2 = screen_diagnostics(_FakeMs([(1., 766.38, 1, "A")], peaks), spec)
+    assert abs(rows2[0]["monoisotope"] - 766.38) < 1e-6
+
+
+def test_grouping_precursor_and_charge():
+    rows = [{"precursor": 500.0000, "charge": 2, "scan": "1"},
+            {"precursor": 500.0015, "charge": 2, "scan": "2"},   # 3ppm → 같은 그룹
+            {"precursor": 500.0100, "charge": 2, "scan": "3"},   # 20ppm → 다른 그룹
+            {"precursor": 500.0000, "charge": 3, "scan": "4"}]   # charge 다름 → 다른 그룹
+    g = dict((r["scan"], gid) for gid, r in group_by_precursor(rows, ppm=5, split_by_charge=True))
+    assert g["1"] == g["2"]
+    assert g["3"] != g["1"]
+    assert g["4"] != g["1"]
+
+
+def test_floor_bin_boundary():
+    assert abs(floor_bin(557.74) - 557.7) < 1e-9
+    assert abs(floor_bin(557.69) - 557.6) < 1e-9
+
+
+def test_rule_validation(tmp_path):
+    good = tmp_path / "d.yaml"
+    good.write_text(
+        "ppm: 5\nions:\n  A: 441.2708\n  B: 204.0867\n"
+        "accept:\n  - {any: [A], min: 1}\n  - {any: [B], min: 1}\n", encoding="utf-8")
     spec = targets.load(str(good))
-    assert len(spec.glycans) == 1 and spec.min_hits == 2
-    # 이온 수 < min_hits → 거부
+    assert spec.ppm == 5 and len(spec.ions) == 2
+    # accept 가 ions 에 없는 이름 참조 → 거부
     bad = tmp_path / "b.yaml"
-    bad.write_text("min_hits: 3\nglycans:\n  - name: A\n    ions: [204.0867]\n", encoding="utf-8")
+    bad.write_text("ions:\n  A: 441.0\naccept:\n  - {any: [ZZZ], min: 1}\n", encoding="utf-8")
     with pytest.raises(ValueError):
         targets.load(str(bad))
-    # 숫자 아닌 이온 → 거부
-    bad2 = tmp_path / "b2.yaml"
-    bad2.write_text("glycans:\n  - name: A\n    ions: [abc, 204.0]\n", encoding="utf-8")
-    with pytest.raises(ValueError):
-        targets.load(str(bad2))
 
 
 if __name__ == "__main__":
-    test_floor_bin_boundary(); test_k_of_n_tiering(); test_multi_glycan_per_pair_tier()
-    print("타깃 스크리닝 테스트 통과 ✓")
+    for fn in [test_accept_rule_441_required, test_feature_annotation_or,
+               test_monoisotope_from_info, test_grouping_precursor_and_charge, test_floor_bin_boundary]:
+        fn()
+    print("진단 스크리닝 테스트 통과 ✓")

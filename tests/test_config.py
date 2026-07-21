@@ -5,10 +5,13 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import yaml
 from glyco import config as cfgmod
 from glyco.chem import Chemistry
 
-CONFIGS = glob.glob(os.path.join(os.path.dirname(cfgmod.CONFIG_DIR), "configs", "*.yaml"))
+# Chemistry 설정만(monosaccharides 있는 것). diagnostics_*.yaml(진단규칙)은 제외.
+CONFIGS = [p for p in glob.glob(os.path.join(os.path.dirname(cfgmod.CONFIG_DIR), "configs", "*.yaml"))
+           if "monosaccharides" in (yaml.safe_load(open(p, encoding="utf-8")) or {})]
 
 
 def test_all_configs_load():

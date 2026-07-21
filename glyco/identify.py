@@ -100,15 +100,18 @@ def floor_bin(x, step=0.1):
     return math.floor(round(x / step, 6)) * step
 
 
-def targeted_screen(msdata, glycans, ppm=20.0, min_hits=2):
+def _ppm_err(obs, theo):
+    return (obs - theo) / theo * 1e6 if obs is not None else None
+
+
+def screen_diagnostics(msdata, spec):
     """
-    사용자 지정 글리칸별 진단이온 목록으로 MS2 스캔을 타깃 스크리닝.
-    glycans : [{"name": str, "ions": [theoretical m/z, ...]}, ...]
-    각 (scan, glycan) 쌍마다 매칭 이온 수를 세어 티어 분류:
-      hits >= min_hits → 'matched' / 1 <= hits < min_hits → 'holding' / 0 → 제외.
-    ⭐ 같은 스캔이 여러 글리칸에 각각 매칭될 수 있음(per-pair 판정, 의도됨).
-    반환: rows = [{scan, rt, precursor, charge, glycan, n_ions, n_hit, tier,
-                   ion_obs={theoretical: observed|None}}]
+    진단규칙(spec)으로 MS2 스캔을 스크리닝(단일 글리칸-공통 규칙 + feature 주석).
+    - 코어이온(spec.ions) 관측 m/z·ppm오차 추출.
+    - 채택 = spec.accept 의 모든 그룹 만족(그룹=any 이온 중 min개 이상 검출).
+    - feature = spec.features 각각(리스트면 OR)이 검출되면 이름 주석.
+    반환: rows = [{scan, rt, precursor, monoisotope, charge,
+                   ion_obs={name:(obs|None, ppm|None)}, features=[name,...]}]  (채택분만)
     """
     import numpy as np
     rows = []
@@ -117,19 +120,26 @@ def targeted_screen(msdata, glycans, ppm=20.0, min_hits=2):
         if pk is None:
             continue
         mz = np.sort(pk[0])
-        for g in glycans:
-            ions = g["ions"]
-            obs = {t: diagnostic.nearest_within_ppm(mz, t, ppm) for t in ions}
-            n_hit = sum(1 for v in obs.values() if v is not None)
-            if n_hit == 0:
-                continue
-            tier = "matched" if n_hit >= min_hits else "holding"
-            rows.append({
-                "scan": scan, "rt": rt, "precursor": pmz, "charge": z,
-                "glycan": g["name"], "n_ions": len(ions), "n_hit": n_hit,
-                "tier": tier, "ion_obs": obs,
-            })
-    rows.sort(key=lambda r: (r["glycan"], r["rt"]))
+        obs = {}
+        for name, theo in spec.ions.items():
+            o = diagnostic.nearest_within_ppm(mz, theo, spec.ppm)
+            obs[name] = (o, _ppm_err(o, theo))
+        # 채택 판정: 모든 그룹에서 (검출된 any 이온 수) >= min
+        accepted = all(
+            sum(1 for n in grp["any"] if obs.get(n, (None,))[0] is not None) >= grp["min"]
+            for grp in spec.accept
+        )
+        if not accepted:
+            continue
+        feats = [ft["name"] for ft in spec.features
+                 if any(diagnostic.nearest_within_ppm(mz, m, spec.ppm) is not None for m in ft["mz"])]
+        info = getattr(msdata, "ms2_info", {}).get(scan, {})
+        rows.append({
+            "scan": scan, "rt": rt, "precursor": pmz,
+            "monoisotope": info.get("monoisotopic_mz") or pmz,
+            "charge": z, "ion_obs": obs, "features": feats,
+        })
+    rows.sort(key=lambda r: r["rt"])
     return rows
 
 

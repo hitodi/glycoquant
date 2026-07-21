@@ -62,6 +62,8 @@ def parse(mzml_path: str, keep_ms2_peaks: bool = False, keep_ms1: bool = True, l
             isolation = prec.get("isolationWindow", {})
             data.ms2_info[scan] = {
                 "selected_mz": pmz,
+                # Thermo 가 계산한 monoisotopic m/z(스캔 userParam) — 스크리닝 시트의 monoisotope 열
+                "monoisotopic_mz": _float_or_none(scan_info.get("[Thermo Trailer Extra]Monoisotopic M/Z:")),
                 "isolation_target_mz": _float_or_none(isolation.get("isolation window target m/z")),
                 "isolation_lower_offset": _float_or_none(isolation.get("isolation window lower offset")),
                 "isolation_upper_offset": _float_or_none(isolation.get("isolation window upper offset")),

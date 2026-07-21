@@ -1,0 +1,30 @@
+# ProA N-글리칸 진단 스크리닝 규칙 (연구실 제공 이론 m/z, 단당+H+ 기준)
+# 사용: python glycan_analyze.py 시료.raw --targets configs/diagnostics_proa.yaml
+ppm: 5
+
+ions:                        # 표시·판정에 쓰는 named 코어 진단이온
+  ProA-HexNAc: 441.2708      # 필수 앵커
+  HexNAc: 204.0867
+  HexNAc+Hex: 366.1395
+
+accept:                      # 모든 그룹 만족해야 채택
+  - {any: [ProA-HexNAc], min: 1}          # 441 필수
+  - {any: [HexNAc, HexNAc+Hex], min: 1}   # 204/366 중 1개 이상
+# ⚠️ 441 필수는 시알산 글리칸 일부를 놓칠 수 있음(진단게이트 경향).
+#    완화하려면 위 첫 그룹을 예: {any: [ProA-HexNAc, Neu5Ac, Neu5Gc], min: 1} 로.
+#    (그 경우 아래 ions 에 Neu5Ac/Neu5Gc 도 추가)
+
+features:                    # 검출 시 주석(채택 무관). mz 리스트면 OR.
+  - {name: "Neu5Ac(시알산·인간)",   mz: [292.1027]}
+  - {name: "Neu5Gc(시알산·비인간)", mz: [308.0976]}
+  - {name: "bisecting-GlcNAc",      mz: [1009.4823, 1155.5403]}
+  - {name: "core-fucose",           mz: [587.3281]}
+  - {name: "terminal-fucose",       mz: [512.1974]}
+  - {name: "phospho(Man)",          mz: [243.0259]}
+  - {name: "acetyl(Neu5Ac)",        mz: [334.1127]}
+  - {name: "acetyl(Neu5Gc)",        mz: [350.1076]}
+  - {name: "sulfation(HexNAc)",     mz: [284.0430]}
+
+group:                       # 구조찾기 그룹핑
+  ppm: 5                     # precursor 이 이내면 한 그룹
+  split_by_charge: true      # charge 다르면 다른 그룹

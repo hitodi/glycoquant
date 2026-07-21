@@ -80,82 +80,75 @@ def write_screening(screening, screening_ions, out_path, meta=None):
     return out_path
 
 
-def write_targeted(rows, spec, out_path, meta=None):
+def group_by_precursor(rows, ppm, split_by_charge=True):
+    """채택 행을 precursor(5ppm 이내) [+charge 동일] 로 클러스터링. 그룹ID 부여."""
+    keyed = sorted(rows, key=lambda r: ((r["charge"] or 0) if split_by_charge else 0, r["precursor"]))
+    out, gid, anchor, achg = [], 0, None, None
+    for r in keyed:
+        chg = (r["charge"] or 0) if split_by_charge else 0
+        new = (anchor is None
+               or (split_by_charge and chg != achg)
+               or abs(r["precursor"] - anchor) / anchor * 1e6 > ppm)
+        if new:
+            gid += 1; anchor = r["precursor"]; achg = chg
+        out.append((gid, r))
+    return out
+
+
+def write_diagnostic_screening(rows, spec, out_path, meta=None):
     """
-    타깃 스크리닝 결과 workbook.
-      - Matched (≥K) : 채택된 (scan,glycan) 쌍
-      - Holding (1..K-1) : 보류(부분매칭)
-      - Precursor groups : Matched 스캔을 precursor floor(step) 로 묶어 나열
+    진단 스크리닝 결과 workbook (파일의 스크리닝/구조찾기 형식).
+      - Screening : 채택 스캔 + 코어이온 관측 m/z·ppm + precursor/monoisotope/charge/Features
+      - 구조찾기   : 위를 precursor(±group_ppm)[+charge] 그룹핑·정렬 + adduct(빈칸=수기)
     """
-    from .identify import floor_bin
-    step = spec.precursor_floor
-    matched = [r for r in rows if r["tier"] == "matched"]
-    holding = [r for r in rows if r["tier"] == "holding"]
+    ion_names = list(spec.ions.keys())
     wb = Workbook()
     wb.remove(wb.active)
 
-    # ---------- Glycan summary (0 포함 — 손입력 오류/누락 구분용) ----------
-    from collections import Counter
-    mc = Counter(r["glycan"] for r in matched)
-    hc = Counter(r["glycan"] for r in holding)
-    gs = wb.create_sheet("Glycan summary")
-    gs.append([f"글리칸별 매칭 요약 (K={spec.min_hits}, ppm={spec.ppm})"])
-    gs["A1"].font = TITLE_FONT
-    gs.append(["Glycan", "이온 N", "Matched", "Holding", "비고"])
-    _style_header(gs, 2, 5)
-    for g in spec.glycans:
-        m, h = mc.get(g["name"], 0), hc.get(g["name"], 0)
-        note = "⚠ 매칭 0 — 입력 m/z 확인" if m == 0 else ""
-        gs.append([g["name"], len(g["ions"]), m, h, note])
-    for rr in range(3, gs.max_row + 1):
-        for cc in range(1, 6):
-            gs.cell(rr, cc).font = Font(name=FONT); gs.cell(rr, cc).border = BORDER
-    _autofit(gs, [18, 8, 10, 10, 24])
-
-    def _sheet(title, data):
-        ws = wb.create_sheet(title)
-        ws.append([title])
-        ws["A1"].font = TITLE_FONT
-        hdr = ["Glycan", "Scan No", "RT (min)", "Hits (n/N)", "Precursor m/z", "Charge", "Matched ions (obs m/z)"]
-        ws.append(hdr)
-        _style_header(ws, 2, len(hdr))
-        for r in data:
-            hit_ions = "; ".join(f"{t:.4f}→{o:.4f}" for t, o in r["ion_obs"].items() if o is not None)
-            ws.append([r["glycan"],
-                       int(r["scan"]) if str(r["scan"]).isdigit() else r["scan"],
-                       round(r["rt"], 2), f"{r['n_hit']}/{r['n_ions']}",
-                       round(r["precursor"], 4), r["charge"] if r["charge"] else "?", hit_ions])
-        for rr in range(3, ws.max_row + 1):
-            for cc in range(1, len(hdr) + 1):
-                ws.cell(rr, cc).font = Font(name=FONT); ws.cell(rr, cc).border = BORDER
-        _autofit(ws, [16, 9, 9, 10, 14, 7, 46])
-        ws.freeze_panes = "A3"
-        return ws
-
-    _sheet(f"Matched (≥{spec.min_hits})", matched)
-    _sheet("Holding (부분매칭)", holding)
-
-    # Precursor groups — Matched 스캔을 floor(step) 로 묶음(표시는 전체값)
-    pg = wb.create_sheet("Precursor groups")
-    pg.append([f"Matched precursor 그룹 (floor {step} 단위)"])
-    pg["A1"].font = TITLE_FONT
-    hdr = ["Group (floor)", "Precursor m/z", "Glycan", "Scan No", "RT (min)", "Charge"]
-    pg.append(hdr)
-    _style_header(pg, 2, len(hdr))
-    from collections import defaultdict
-    groups = defaultdict(list)
-    for r in matched:
-        groups[floor_bin(r["precursor"], step)].append(r)
-    for key in sorted(groups):
-        for r in sorted(groups[key], key=lambda x: x["precursor"]):
-            pg.append([round(key, 4), round(r["precursor"], 4), r["glycan"],
-                       int(r["scan"]) if str(r["scan"]).isdigit() else r["scan"],
-                       round(r["rt"], 2), r["charge"] if r["charge"] else "?"])
-    for rr in range(3, pg.max_row + 1):
+    # ---------- Screening ----------
+    sc = wb.create_sheet("Screening")
+    sc.append([f"진단 스크리닝 (±{spec.ppm} ppm) — 채택 {len(rows)}스캔"])
+    sc["A1"].font = TITLE_FONT
+    if meta:
+        sc.append([f"시료: {meta.get('sample','')}"]); sc["A2"].font = Font(name=FONT, italic=True, color="666666")
+    hr = sc.max_row + 1
+    hdr = ["no.", "Scan No", "RT (min)"]
+    for n in ion_names:
+        hdr += [f"{n} (obs)", "err(ppm)"]
+    hdr += ["Precursor m/z", "Monoisotope", "Charge", "Features"]
+    sc.append(hdr)
+    _style_header(sc, hr, len(hdr))
+    for i, r in enumerate(rows):
+        line = [i + 1, int(r["scan"]) if str(r["scan"]).isdigit() else r["scan"], round(r["rt"], 2)]
+        for n in ion_names:
+            o, e = r["ion_obs"].get(n, (None, None))
+            line += [round(o, 4) if o is not None else "-", round(e, 2) if e is not None else "-"]
+        line += [round(r["precursor"], 4), round(r["monoisotope"], 4),
+                 r["charge"] if r["charge"] else "?", "; ".join(r["features"])]
+        sc.append(line)
+    for rr in range(hr + 1, sc.max_row + 1):
         for cc in range(1, len(hdr) + 1):
-            pg.cell(rr, cc).font = Font(name=FONT); pg.cell(rr, cc).border = BORDER
-    _autofit(pg, [14, 14, 16, 9, 9, 7])
-    pg.freeze_panes = "A3"
+            sc.cell(rr, cc).font = Font(name=FONT); sc.cell(rr, cc).border = BORDER
+    _autofit(sc, [5, 9, 8] + [11, 8] * len(ion_names) + [13, 13, 7, 28])
+    sc.freeze_panes = sc.cell(hr + 1, 1)
+
+    # ---------- 구조찾기 (precursor 그룹) ----------
+    st = wb.create_sheet("구조찾기")
+    st.append([f"구조찾기 — precursor ±{spec.group_ppm}ppm{'·charge별' if spec.split_by_charge else ''} 그룹. 색·GlycoWorkbench·구조판정은 수기."])
+    st["A1"].font = TITLE_FONT
+    hr2 = st.max_row + 1
+    hdr2 = ["Group", "Scan No", "RT (min)", "Precursor m/z", "Monoisotope", "Charge", "adduct", "Features"]
+    st.append(hdr2)
+    _style_header(st, hr2, len(hdr2))
+    for gid, r in group_by_precursor(rows, spec.group_ppm, spec.split_by_charge):
+        st.append([gid, int(r["scan"]) if str(r["scan"]).isdigit() else r["scan"], round(r["rt"], 2),
+                   round(r["precursor"], 4), round(r["monoisotope"], 4),
+                   r["charge"] if r["charge"] else "?", "", "; ".join(r["features"])])
+    for rr in range(hr2 + 1, st.max_row + 1):
+        for cc in range(1, len(hdr2) + 1):
+            st.cell(rr, cc).font = Font(name=FONT); st.cell(rr, cc).border = BORDER
+    _autofit(st, [7, 9, 8, 13, 13, 7, 10, 28])
+    st.freeze_panes = st.cell(hr2 + 1, 1)
 
     wb.save(out_path)
     return out_path

@@ -102,29 +102,34 @@ python glycan_analyze.py 시료.raw --ms1-first            # 시알산 회수
 python glycan_analyze.py 시료.raw -c configs/2ab_nglycan.yaml
 ```
 202
-### 타깃 스크리닝 — 직접 정한 진단이온으로 (`--targets`)
-사용자가 **직접 계산한 글리칸별 진단이온 이론 m/z**를 넣어, 그 이온이 ±ppm으로
-보이는 MS2 스캔만 뽑는다. 글리칸당 N개 이온 중 **K개 이상 매칭 시 채택**.
+### 진단 스크리닝 — 직접 정한 진단이온 규칙으로 (`--targets`)
+연구실이 **직접 계산한 진단이온 이론 m/z + 채택규칙**을 YAML로 넣어, MS2 스캔을
+±ppm으로 매칭해 스크리닝한다(글리칸 공통 단일 규칙 + 구조특징 주석).
 ```bash
-python glycan_analyze.py 시료.raw --targets targets.yaml
+python glycan_analyze.py 시료.raw --targets configs/diagnostics_proa.yaml
 ```
 ```yaml
-# targets.yaml
-ppm: 20            # 이온 매칭 허용오차
-min_hits: 2        # K (N개 중 K개 이상이면 채택)
-precursor_floor: 0.1
-glycans:
-  - name: GlycanA
-    ions: [204.0867, 366.1395, 528.19]   # 직접 계산한 이론 m/z (N개)
-  - name: GlycanB
-    ions: [292.1027, 657.2349, 946.34]
+ppm: 5
+ions:                        # named 코어 진단이온
+  ProA-HexNAc: 441.2708
+  HexNAc: 204.0867
+  HexNAc+Hex: 366.1395
+accept:                      # 모든 그룹 만족해야 채택
+  - {any: [ProA-HexNAc], min: 1}          # 441 필수
+  - {any: [HexNAc, HexNAc+Hex], min: 1}   # 204/366 중 1
+features:                    # 검출 시 주석(채택 무관, mz 리스트=OR)
+  - {name: "Neu5Ac(시알산)", mz: [292.1027]}
+  - {name: "bisecting-GlcNAc", mz: [1009.4823, 1155.5403]}
+  - {name: "core-fucose", mz: [587.3281]}
+  # ...
+group: {ppm: 5, split_by_charge: true}   # 구조찾기 그룹핑
 ```
-- 출력 `시료_targeted.xlsx` 3시트:
-  - **Matched (≥K)**: 채택 (scan×glycan)
-  - **Holding (부분매칭)**: 1~K−1 매칭(보류·검토용, 버려도 됨)
-  - **Precursor groups**: Matched 를 **precursor floor(0.1) 단위로 묶어** 나열(표시는 전체값)
-- CSV 도 가능(`name,ion1,ion2,...` 행). 옵션 override: `--min-hits`, `--targets-ppm`, `--precursor-floor`.
-- ⚠️ 한 스캔이 여러 글리칸에 각각 매칭될 수 있음(진단이온 공유) — 의도된 스크리닝 뷰(글리칸별 판정).
+- 출력 `시료_screening.xlsx` 2시트(연구실 파일 형식):
+  - **Screening**: 채택 스캔 — 코어이온 관측 m/z·ppm오차 + precursor·monoisotope·charge·**Features**
+  - **구조찾기**: 위를 **precursor ±5ppm(+charge별)로 그룹핑·정렬** + adduct열(수기) — 색·GlycoWorkbench는 수기
+- monoisotope 열 = Thermo `Monoisotopic M/Z`(있을 때) / 없으면 precursor.
+- ⚠️ 441 필수는 시알산 일부를 놓칠 수 있음(TTR 실측: 버려진 1094스캔 중 시알산 35). 완화하려면 accept 첫 그룹에 시알산 이온 추가.
+- ⚠️ 구조찾기 그룹 = **같은 precursor(이온)** 클러스터 — Na/K adduct는 m/z 달라 다른 그룹(adduct-family 묶기는 수기).
 
 ### 폴더(반복) 배치 — 개별 + 취합
 입력에 **파일 대신 디렉토리**를 주면, 그 안의 `.raw`/`.mzML` 전부를 각각 분석하고
