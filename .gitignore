@@ -26,3 +26,6 @@ result/
 
 # 실행 결과물 폴더
 outputs/
+
+# TTR 검증 mzML(미커밋)
+tests/data/ttr.mzML

@@ -80,17 +80,20 @@ def write_screening(screening, screening_ions, out_path, meta=None):
     return out_path
 
 
-def group_by_precursor(rows, ppm, split_by_charge=True):
-    """채택 행을 precursor(5ppm 이내) [+charge 동일] 로 클러스터링. 그룹ID 부여."""
-    keyed = sorted(rows, key=lambda r: ((r["charge"] or 0) if split_by_charge else 0, r["precursor"]))
+def group_by_mass(rows, ppm, split_by_charge=True, key="monoisotope"):
+    """
+    채택 행을 질량(key: monoisotope 기준, 연구실 방식) ±ppm [+charge 동일] 로 클러스터링.
+    monoisotope 는 Thermo userParam(있을 때)/없으면 precursor 폴백값이 이미 채워져 있음.
+    """
+    keyed = sorted(rows, key=lambda r: ((r["charge"] or 0) if split_by_charge else 0, r[key]))
     out, gid, anchor, achg = [], 0, None, None
     for r in keyed:
         chg = (r["charge"] or 0) if split_by_charge else 0
         new = (anchor is None
                or (split_by_charge and chg != achg)
-               or abs(r["precursor"] - anchor) / anchor * 1e6 > ppm)
+               or abs(r[key] - anchor) / anchor * 1e6 > ppm)
         if new:
-            gid += 1; anchor = r["precursor"]; achg = chg
+            gid += 1; anchor = r[key]; achg = chg
         out.append((gid, r))
     return out
 
@@ -134,20 +137,20 @@ def write_diagnostic_screening(rows, spec, out_path, meta=None):
 
     # ---------- 구조찾기 (precursor 그룹) ----------
     st = wb.create_sheet("구조찾기")
-    st.append([f"구조찾기 — precursor ±{spec.group_ppm}ppm{'·charge별' if spec.split_by_charge else ''} 그룹. 색·GlycoWorkbench·구조판정은 수기."])
+    st.append([f"구조찾기 — monoisotope ±{spec.group_ppm}ppm{'·charge별' if spec.split_by_charge else ''} 그룹. 색·GlycoWorkbench·구조판정은 수기."])
     st["A1"].font = TITLE_FONT
     hr2 = st.max_row + 1
-    hdr2 = ["Group", "Scan No", "RT (min)", "Precursor m/z", "Monoisotope", "Charge", "adduct", "Features"]
+    hdr2 = ["Group", "SC no.", "Scan No", "RT (min)", "Precursor m/z", "Monoisotope", "Charge", "adduct", "Features"]
     st.append(hdr2)
     _style_header(st, hr2, len(hdr2))
-    for gid, r in group_by_precursor(rows, spec.group_ppm, spec.split_by_charge):
-        st.append([gid, int(r["scan"]) if str(r["scan"]).isdigit() else r["scan"], round(r["rt"], 2),
-                   round(r["precursor"], 4), round(r["monoisotope"], 4),
+    for gid, r in group_by_mass(rows, spec.group_ppm, spec.split_by_charge, key="monoisotope"):
+        st.append([gid, r.get("sc_no"), int(r["scan"]) if str(r["scan"]).isdigit() else r["scan"],
+                   round(r["rt"], 2), round(r["precursor"], 4), round(r["monoisotope"], 4),
                    r["charge"] if r["charge"] else "?", "", "; ".join(r["features"])])
     for rr in range(hr2 + 1, st.max_row + 1):
         for cc in range(1, len(hdr2) + 1):
             st.cell(rr, cc).font = Font(name=FONT); st.cell(rr, cc).border = BORDER
-    _autofit(st, [7, 9, 8, 13, 13, 7, 10, 28])
+    _autofit(st, [7, 7, 9, 8, 13, 13, 7, 10, 28])
     st.freeze_panes = st.cell(hr2 + 1, 1)
 
     wb.save(out_path)

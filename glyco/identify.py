@@ -140,6 +140,8 @@ def screen_diagnostics(msdata, spec):
             "charge": z, "ion_obs": obs, "features": feats,
         })
     rows.sort(key=lambda r: r["rt"])
+    for i, r in enumerate(rows):
+        r["sc_no"] = i + 1          # Screening 행 번호(구조찾기에서 역참조)
     return rows
 
 

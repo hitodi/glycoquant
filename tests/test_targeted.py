@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 from glyco.identify import screen_diagnostics, floor_bin
-from glyco.report import group_by_precursor
+from glyco.report import group_by_mass
 from glyco import targets
 
 
@@ -68,7 +68,7 @@ def test_grouping_precursor_and_charge():
             {"precursor": 500.0015, "charge": 2, "scan": "2"},   # 3ppm → 같은 그룹
             {"precursor": 500.0100, "charge": 2, "scan": "3"},   # 20ppm → 다른 그룹
             {"precursor": 500.0000, "charge": 3, "scan": "4"}]   # charge 다름 → 다른 그룹
-    g = dict((r["scan"], gid) for gid, r in group_by_precursor(rows, ppm=5, split_by_charge=True))
+    g = dict((r["scan"], gid) for gid, r in group_by_mass(rows, ppm=5, split_by_charge=True, key="precursor"))
     assert g["1"] == g["2"]
     assert g["3"] != g["1"]
     assert g["4"] != g["1"]

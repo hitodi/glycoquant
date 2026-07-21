@@ -126,10 +126,11 @@ group: {ppm: 5, split_by_charge: true}   # 구조찾기 그룹핑
 ```
 - 출력 `시료_screening.xlsx` 2시트(연구실 파일 형식):
   - **Screening**: 채택 스캔 — 코어이온 관측 m/z·ppm오차 + precursor·monoisotope·charge·**Features**
-  - **구조찾기**: 위를 **precursor ±5ppm(+charge별)로 그룹핑·정렬** + adduct열(수기) — 색·GlycoWorkbench는 수기
-- monoisotope 열 = Thermo `Monoisotopic M/Z`(있을 때) / 없으면 precursor.
-- ⚠️ 441 필수는 시알산 일부를 놓칠 수 있음(TTR 실측: 버려진 1094스캔 중 시알산 35). 완화하려면 accept 첫 그룹에 시알산 이온 추가.
-- ⚠️ 구조찾기 그룹 = **같은 precursor(이온)** 클러스터 — Na/K adduct는 m/z 달라 다른 그룹(adduct-family 묶기는 수기).
+  - **구조찾기**: 위를 **monoisotope ±5ppm(+charge별)로 그룹핑·정렬**(연구실 방식) + SC no.(Screening 역참조)·adduct열(수기) — 색·GlycoWorkbench는 수기
+- monoisotope 열/그룹키 = Thermo `Monoisotopic M/Z`(있을 때) / 없으면 precursor.
+- 검증(TTR 실데이터): 교수님 수기 스크리닝 1915스캔과 **86% overlap**(방법차이=EIC피크 vs per-scan). 채택 2244→419 그룹.
+- ⚠️ 441 필수의 시알산 손실(TTR 실측): 버려진 1094스캔 중 시알산 35, 그중 21은 다른 스캔으로 살아있고 **14가 순손실 후보**. 완화하려면 accept 첫 그룹에 시알산 이온 추가.
+- ⚠️ 구조찾기 그룹 = **같은 monoisotope** 클러스터 — Na/K adduct는 질량 달라 다른 그룹(adduct-family 묶기는 수기).
 
 ### 폴더(반복) 배치 — 개별 + 취합
 입력에 **파일 대신 디렉토리**를 주면, 그 안의 `.raw`/`.mzML` 전부를 각각 분석하고
