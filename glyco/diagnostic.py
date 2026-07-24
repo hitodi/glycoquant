@@ -8,6 +8,8 @@ MS2 단편 스펙트럼에 글리칸 공통 진단이온(예: 204.0867 HexNAc, 4
 
 import numpy as np
 
+from .chem import ppm_error
+
 
 def nearest_within_ppm(sorted_mz, target, ppm_tol=20.0):
     """
@@ -19,7 +21,7 @@ def nearest_within_ppm(sorted_mz, target, ppm_tol=20.0):
     i = np.searchsorted(sorted_mz, target)
     best = None
     for j in (i, i - 1):
-        if 0 <= j < sorted_mz.size and abs(sorted_mz[j] - target) / target * 1e6 <= ppm_tol:
+        if 0 <= j < sorted_mz.size and abs(ppm_error(sorted_mz[j], target)) <= ppm_tol:
             if best is None or abs(sorted_mz[j] - target) < abs(best - target):
                 best = float(sorted_mz[j])
     return best
@@ -47,7 +49,7 @@ def present_ions(peaks_mz, diag_table, ppm_tol=20.0, min_rel_intensity=0.0, inte
         idx = np.searchsorted(mz, target)
         for j in (idx, idx - 1):
             if 0 <= j < mz.size:
-                if abs(mz[j] - target) / target * 1e6 <= ppm_tol:
+                if abs(ppm_error(mz[j], target)) <= ppm_tol:
                     if it is None or it[j] >= thr:
                         found.add(name)
                         break

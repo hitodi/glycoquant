@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np
 import pytest
 
-from glyco.identify import screen_diagnostics, floor_bin
+from glyco.identify import screen_diagnostics
 from glyco.report import group_by_mass
 from glyco import targets
 
@@ -74,11 +74,6 @@ def test_grouping_precursor_and_charge():
     assert g["4"] != g["1"]
 
 
-def test_floor_bin_boundary():
-    assert abs(floor_bin(557.74) - 557.7) < 1e-9
-    assert abs(floor_bin(557.69) - 557.6) < 1e-9
-
-
 def test_rule_validation(tmp_path):
     good = tmp_path / "d.yaml"
     good.write_text(
@@ -95,6 +90,6 @@ def test_rule_validation(tmp_path):
 
 if __name__ == "__main__":
     for fn in [test_accept_rule_441_required, test_feature_annotation_or,
-               test_monoisotope_from_info, test_grouping_precursor_and_charge, test_floor_bin_boundary]:
+               test_monoisotope_from_info, test_grouping_precursor_and_charge]:
         fn()
     print("진단 스크리닝 테스트 통과 ✓")

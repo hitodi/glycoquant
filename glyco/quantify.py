@@ -26,6 +26,19 @@ def build_targets(candidates, adduct_ions, ion_mz_fn):
     return mz_sorted, meta
 
 
+def _find_nearest(mz, mz_targets, tol):
+    """정렬된 스캔 피크 mz 에서 각 타깃의 최근접 인덱스와 tol 이내 여부.
+    반환: (nearest, hit)  — nearest[i]=타깃 i 에 가장 가까운 mz 인덱스, hit[i]=tol[i] 이내."""
+    idx = np.clip(np.searchsorted(mz, mz_targets), 1, mz.size - 1)
+    left = idx - 1
+    dl = np.abs(mz[left] - mz_targets)
+    dr = np.abs(mz[idx] - mz_targets)
+    use_left = dl <= dr
+    nearest = np.where(use_left, left, idx)
+    ndist = np.where(use_left, dl, dr)
+    return nearest, ndist <= tol
+
+
 def extract_xic(msdata, mz_targets, ppm_tol=10.0, log=print):
     """
     선택된 타깃들의 XIC 강도행렬을 만든다.
@@ -44,14 +57,7 @@ def extract_xic(msdata, mz_targets, ppm_tol=10.0, log=print):
     for k, (_, mz, it) in enumerate(msdata.ms1):
         if mz.size == 0:
             continue
-        idx = np.clip(np.searchsorted(mz, mz_targets), 1, mz.size - 1)
-        left = idx - 1
-        dl = np.abs(mz[left] - mz_targets)
-        dr = np.abs(mz[idx] - mz_targets)
-        use_left = dl <= dr
-        nearest = np.where(use_left, left, idx)
-        ndist = np.where(use_left, dl, dr)
-        hit = ndist <= tol
+        nearest, hit = _find_nearest(mz, mz_targets, tol)
         inten[hit, k] = it[nearest][hit]
         mzmat[hit, k] = mz[nearest][hit]
         if log and k % 500 == 0 and k:
@@ -105,15 +111,8 @@ def apex_scan(msdata, mz_targets, ppm_tol=5.0, log=print):
     for k, (rt, mz, inten) in enumerate(msdata.ms1):
         if mz.size == 0:
             continue
-        idx = np.clip(np.searchsorted(mz, mz_targets), 1, mz.size - 1)
-        left = idx - 1
-        dl = np.abs(mz[left] - mz_targets)
-        dr = np.abs(mz[idx] - mz_targets)
-        use_left = dl <= dr
-        nearest = np.where(use_left, left, idx)
-        ndist = np.where(use_left, dl, dr)
+        nearest, hit = _find_nearest(mz, mz_targets, tol)
         peak = inten[nearest]
-        hit = ndist <= tol
         upd = hit & (peak > best_int)
         best_int[upd] = peak[upd]
         best_rt[upd] = rt

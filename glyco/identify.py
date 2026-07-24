@@ -16,10 +16,7 @@
 import numpy as np
 
 from . import masses, compositions, quantify, classify, diagnostic
-
-
-def _ppm(obs, theo):
-    return (obs - theo) / theo * 1e6
+from .chem import ppm_error
 
 
 def match_ms2(msdata, mz_targets, meta, ppm_tol=10.0):
@@ -40,7 +37,7 @@ def match_ms2(msdata, mz_targets, meta, ppm_tol=10.0):
             cands.append(idx - 1)
         best = None
         for j in cands:
-            ppm = abs(_ppm(pmz, mz_targets[j]))
+            ppm = abs(ppm_error(pmz, mz_targets[j]))
             if ppm <= ppm_tol and (best is None or ppm < best[0]):
                 best = (ppm, j)
         if best is None:
@@ -52,7 +49,7 @@ def match_ms2(msdata, mz_targets, meta, ppm_tol=10.0):
             continue
         hits[m["cand_idx"]].append({
             "scan": scan, "rt": rt, "adduct": m["adduct"], "z": m["z"],
-            "obs_mz": pmz, "ppm": _ppm(pmz, m["mz"]),
+            "obs_mz": pmz, "ppm": ppm_error(pmz, m["mz"]),
         })
     return hits
 
@@ -94,16 +91,6 @@ def screening_table(msdata, diag_table, ppm=20.0, anchor="HexNAc"):
     return rows, ion_names
 
 
-def floor_bin(x, step=0.1):
-    """x 를 step 단위로 버림(floor)한 그룹 키. 부동소수 표현오차 방지용 반올림 경유."""
-    import math
-    return math.floor(round(x / step, 6)) * step
-
-
-def _ppm_err(obs, theo):
-    return (obs - theo) / theo * 1e6 if obs is not None else None
-
-
 def screen_diagnostics(msdata, spec):
     """
     진단규칙(spec)으로 MS2 스캔을 스크리닝(단일 글리칸-공통 규칙 + feature 주석).
@@ -123,7 +110,7 @@ def screen_diagnostics(msdata, spec):
         obs = {}
         for name, theo in spec.ions.items():
             o = diagnostic.nearest_within_ppm(mz, theo, spec.ppm)
-            obs[name] = (o, _ppm_err(o, theo))
+            obs[name] = (o, ppm_error(o, theo))
         # 채택 판정: 모든 그룹에서 (검출된 any 이온 수) >= min
         accepted = all(
             sum(1 for n in grp["any"] if obs.get(n, (None,))[0] is not None) >= grp["min"]
@@ -202,7 +189,7 @@ def run(candidates, *, msdata, max_charge=3, ppm_tol=10.0,
             amz = a_mz[i]
             if amz != amz or a_int[i] <= floor:
                 continue
-            if abs(_ppm(amz, m["mz"])) > ms1_first_ppm:
+            if abs(ppm_error(amz, m["mz"])) > ms1_first_ppm:
                 continue
             by_cand[m["cand_idx"]].append((a_int[i], a_rt[i]))
         for ci, lst in by_cand.items():
@@ -237,7 +224,7 @@ def run(candidates, *, msdata, max_charge=3, ppm_tol=10.0,
             continue
         # MS1 정밀질량 게이트: apex 피크가 이론 m/z 와 ms1_ppm 이내여야 인정
         amz = float(apex_mz[local_i])
-        if amz != amz or abs(_ppm(amz, m["mz"])) > ms1_ppm:   # NaN 또는 ppm 초과
+        if amz != amz or abs(ppm_error(amz, m["mz"])) > ms1_ppm:   # NaN 또는 ppm 초과
             continue
         raw[m["cand_idx"]].append({
             "adduct": compositions.adduct_label(m["adduct"]), "z": m["z"],

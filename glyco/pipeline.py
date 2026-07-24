@@ -18,6 +18,7 @@ def targeted_screening(input_path, targets_file, *, config_path=None, output=Non
     """
     진단규칙 파일(targets_file: required/any_of/features)로 MS2 스크리닝 → 스크리닝/구조찾기 시트.
     반환: (rows, out_path, spec)
+    (config_path 는 CLI 호출 시그니처 통일용으로만 받고, 이 모드는 targets_file 만 사용한다.)
     """
     overrides = overrides or {}
     spec = targets_mod.load(targets_file)
