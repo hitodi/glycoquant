@@ -18,6 +18,11 @@ def formula_mass(formula: dict) -> float:
     return sum(ELEMENT[el] * n for el, n in formula.items())
 
 
+def ppm_error(obs, theo):
+    """관측 m/z 의 이론값 대비 ppm 오차 (부호 유지). obs 가 None 이면 None."""
+    return (obs - theo) / theo * 1e6 if obs is not None else None
+
+
 _H2O = formula_mass({"H": 2, "O": 1})
 
 

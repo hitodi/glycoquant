@@ -12,6 +12,8 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
+from .chem import ppm_error
+
 FONT = "Arial"
 HEAD_FILL = PatternFill("solid", fgColor="1F4E78")
 HEAD_FONT = Font(name=FONT, bold=True, color="FFFFFF")
@@ -27,6 +29,17 @@ def _style_header(ws, row, ncol):
         cell.font = HEAD_FONT
         cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
         cell.border = BORDER
+
+
+def _style_body(ws, r0, r1, ncol, num_fmt=None, num_cols=()):
+    """본문 셀에 기본 폰트·테두리를 입힌다. num_cols 에 든 열은 num_fmt 로 서식."""
+    for rr in range(r0, r1 + 1):
+        for cc in range(1, ncol + 1):
+            cell = ws.cell(rr, cc)
+            cell.font = Font(name=FONT)
+            cell.border = BORDER
+            if num_fmt and cc in num_cols:
+                cell.number_format = num_fmt
 
 
 def _autofit(ws, widths):
@@ -62,10 +75,7 @@ def _add_screening_sheet(wb, screening, screening_ions, *, title="Screening", me
             None,
         ]
         sc.append(line)
-    for rr in range(hdr_row + 1, sc.max_row + 1):
-        for cc in range(1, len(hdr) + 1):
-            sc.cell(rr, cc).font = Font(name=FONT)
-            sc.cell(rr, cc).border = BORDER
+    _style_body(sc, hdr_row + 1, sc.max_row, len(hdr))
     _autofit(sc, [9, 8] + [13] * len(screening_ions) + [14, 19, 7, 14])
     sc.freeze_panes = sc.cell(hdr_row + 1, 1)
     return sc
@@ -91,7 +101,7 @@ def group_by_mass(rows, ppm, split_by_charge=True, key="monoisotope"):
         chg = (r["charge"] or 0) if split_by_charge else 0
         new = (anchor is None
                or (split_by_charge and chg != achg)
-               or abs(r[key] - anchor) / anchor * 1e6 > ppm)
+               or abs(ppm_error(r[key], anchor)) > ppm)
         if new:
             gid += 1; anchor = r[key]; achg = chg
         out.append((gid, r))
@@ -129,9 +139,7 @@ def write_diagnostic_screening(rows, spec, out_path, meta=None):
         line += [round(r["precursor"], 4), round(r["monoisotope"], 4),
                  r["charge"] if r["charge"] else "?", "; ".join(r["features"])]
         sc.append(line)
-    for rr in range(hr + 1, sc.max_row + 1):
-        for cc in range(1, len(hdr) + 1):
-            sc.cell(rr, cc).font = Font(name=FONT); sc.cell(rr, cc).border = BORDER
+    _style_body(sc, hr + 1, sc.max_row, len(hdr))
     _autofit(sc, [5, 9, 8] + [11, 8] * len(ion_names) + [13, 13, 7, 28])
     sc.freeze_panes = sc.cell(hr + 1, 1)
 
@@ -147,9 +155,7 @@ def write_diagnostic_screening(rows, spec, out_path, meta=None):
         st.append([gid, r.get("sc_no"), int(r["scan"]) if str(r["scan"]).isdigit() else r["scan"],
                    round(r["rt"], 2), round(r["precursor"], 4), round(r["monoisotope"], 4),
                    r["charge"] if r["charge"] else "?", "", "; ".join(r["features"])])
-    for rr in range(hr2 + 1, st.max_row + 1):
-        for cc in range(1, len(hdr2) + 1):
-            st.cell(rr, cc).font = Font(name=FONT); st.cell(rr, cc).border = BORDER
+    _style_body(st, hr2 + 1, st.max_row, len(hdr2))
     _autofit(st, [7, 7, 9, 8, 13, 13, 7, 10, 28])
     st.freeze_panes = st.cell(hr2 + 1, 1)
 
@@ -194,10 +200,7 @@ def write_aggregated(agg, out_path, meta=None):
             row.append(round(v, 2) if v is not None else None)
         ws.append(row)
     last = ws.max_row
-    for rr in range(hr + 1, last + 1):
-        for cc in range(1, len(headers) + 1):
-            ws.cell(rr, cc).font = Font(name=FONT)
-            ws.cell(rr, cc).border = BORDER
+    _style_body(ws, hr + 1, last, len(headers))
     _autofit(ws, [5, 12, 26, 13, 11, 9, 8, 8, 11] + [11] * len(files))
     ws.freeze_panes = ws.cell(hr + 1, 1)
 
@@ -213,10 +216,7 @@ def write_aggregated(agg, out_path, meta=None):
         sd = round(d["sd"], 1) if d["sd"] is not None else "-"
         row = [t, round(d["mean"], 1), sd] + [round(d["by_file"][f], 1) for f in files]
         ts.append(row)
-    for rr in range(3, ts.max_row + 1):
-        for cc in range(1, len(th) + 1):
-            ts.cell(rr, cc).font = Font(name=FONT)
-            ts.cell(rr, cc).border = BORDER
+    _style_body(ts, 3, ts.max_row, len(th))
     _autofit(ts, [14, 9, 8] + [11] * len(files))
 
     wb.save(out_path)
@@ -279,13 +279,7 @@ def write(results, out_path, meta=None, screening=None, screening_ions=None):
                 f"=SUM({get_column_letter(len(headers))}{first}:{get_column_letter(len(headers))}{last})")
         ws.cell(total_row, len(headers)).number_format = "0.00"
 
-    for rr in range(first, last + 1):
-        for cc in range(1, len(headers) + 1):
-            cell = ws.cell(rr, cc)
-            cell.font = Font(name=FONT)
-            cell.border = BORDER
-            if cc in (inten_col,):
-                cell.number_format = "#,##0"
+    _style_body(ws, first, last, len(headers), num_fmt="#,##0", num_cols=(inten_col,))
     _autofit(ws, [5, 12, 28, 8, 7, 9, 8, 8, 13, 10, 11, 13, 10, 8, 9, 7, 10, 7, 16, 11])
     ws.freeze_panes = ws.cell(first, 1)
 
@@ -345,13 +339,7 @@ def write(results, out_path, meta=None, screening=None, screening_ions=None):
             ad.append([r["name"], r["type"], a["adduct"], a["z"],
                        round(a["mz"], 4), round(a["rt"], 2) if a["rt"] == a["rt"] else None,
                        a["intensity"]])
-    for rr in range(3, ad.max_row + 1):
-        for cc in range(1, 8):
-            cell = ad.cell(rr, cc)
-            cell.font = Font(name=FONT)
-            cell.border = BORDER
-            if cc == 7:
-                cell.number_format = "#,##0"
+    _style_body(ad, 3, ad.max_row, 7, num_fmt="#,##0", num_cols=(7,))
     _autofit(ad, [30, 13, 10, 8, 13, 10, 16])
     ad.freeze_panes = "A3"
 
